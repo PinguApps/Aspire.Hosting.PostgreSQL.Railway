@@ -27,7 +27,11 @@ internal static class RailwayPostgresDatabaseProvisioner
             return;
         }
 
-        await using NpgsqlConnection connection = new(service.ConnectionString);
+        string connectionString = string.IsNullOrWhiteSpace(service.ProvisioningConnectionString)
+            ? service.ConnectionString
+            : service.ProvisioningConnectionString;
+
+        await using NpgsqlConnection connection = new(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
         foreach (string databaseName in distinctDatabaseNames)

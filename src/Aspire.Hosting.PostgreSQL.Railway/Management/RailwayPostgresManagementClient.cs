@@ -158,6 +158,11 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         string userName = GetVariableOrEmpty(variables, "PGUSER");
         string password = GetVariableOrEmpty(variables, "PGPASSWORD");
         string databaseName = GetVariableOrEmpty(variables, "PGDATABASE");
+        string publicDatabaseUrl = GetVariableOrEmpty(variables, "DATABASE_PUBLIC_URL");
+        string connectionString = RailwayPostgresConnectionString.Create(host, port, userName, password, databaseName);
+        string provisioningConnectionString = string.IsNullOrWhiteSpace(publicDatabaseUrl)
+            ? connectionString
+            : RailwayPostgresConnectionString.CreateFromUri(publicDatabaseUrl);
 
         return new RailwayPostgresDatabaseDetails
         {
@@ -170,7 +175,8 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             UserName = userName,
             Password = password,
             DatabaseName = databaseName,
-            ConnectionString = RailwayPostgresConnectionString.Create(host, port, userName, password, databaseName),
+            ConnectionString = connectionString,
+            ProvisioningConnectionString = provisioningConnectionString,
             LatestDeploymentStatus = status,
         };
     }

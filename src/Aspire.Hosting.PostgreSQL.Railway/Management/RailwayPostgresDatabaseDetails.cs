@@ -22,6 +22,8 @@ internal sealed class RailwayPostgresDatabaseDetails
 
     public string ConnectionString { get; init; } = string.Empty;
 
+    public string ProvisioningConnectionString { get; init; } = string.Empty;
+
     public string? LatestDeploymentStatus { get; init; }
 
     public bool HasConnectionVariables =>
@@ -47,7 +49,10 @@ internal sealed class RailwayPostgresDatabaseDetails
             UserName = UserName,
             Password = Password,
             DatabaseName = databaseName,
-            ConnectionString = RailwayPostgresConnectionString.Create(Host, Port, UserName, Password, databaseName),
+            ConnectionString = RailwayPostgresConnectionString.WithDatabaseName(ConnectionString, databaseName),
+            ProvisioningConnectionString = string.IsNullOrWhiteSpace(ProvisioningConnectionString)
+                ? string.Empty
+                : RailwayPostgresConnectionString.WithDatabaseName(ProvisioningConnectionString, databaseName),
             LatestDeploymentStatus = LatestDeploymentStatus,
         };
     }

@@ -184,7 +184,8 @@ public sealed class RailwayPostgresContractTests
                   "PGUSER": "postgres",
                   "PGPASSWORD": "postgres-password",
                   "PGDATABASE": "railway",
-                  "DATABASE_URL": "Host=postgres.railway.internal;Port=5432;Username=postgres;Password=postgres-password;Database=railway;SSL Mode=Require"
+                  "DATABASE_URL": "postgresql://postgres:postgres-password@postgres.railway.internal:5432/railway",
+                  "DATABASE_PUBLIC_URL": "postgresql://postgres:postgres-password@shortline.proxy.rlwy.net:27543/railway"
                 }
               }
             }
@@ -200,7 +201,14 @@ public sealed class RailwayPostgresContractTests
 
         Assert.Equal("svc_123", service.ServiceId);
         Assert.Equal("orders-postgres", service.ServiceName);
-        Assert.Equal("railway", new NpgsqlConnectionStringBuilder(service.ConnectionString).Database);
+        NpgsqlConnectionStringBuilder appConnectionString = new(service.ConnectionString);
+        NpgsqlConnectionStringBuilder provisioningConnectionString = new(service.ProvisioningConnectionString);
+        Assert.Equal("postgres.railway.internal", appConnectionString.Host);
+        Assert.Equal(5432, appConnectionString.Port);
+        Assert.Equal("railway", appConnectionString.Database);
+        Assert.Equal("shortline.proxy.rlwy.net", provisioningConnectionString.Host);
+        Assert.Equal(27543, provisioningConnectionString.Port);
+        Assert.Equal("railway", provisioningConnectionString.Database);
         Assert.Equal("Bearer", handler.Requests[0].AuthorizationScheme);
         Assert.Equal("management-secret", handler.Requests[0].AuthorizationParameter);
         Assert.Contains("GetRailwayPostgresTemplate", handler.Requests[0].Content, StringComparison.Ordinal);
@@ -266,6 +274,12 @@ public sealed class RailwayPostgresContractTests
             ConnectionString = RailwayPostgresConnectionString.Create(
                 "postgres.railway.internal",
                 5432,
+                "postgres",
+                "postgres-password",
+                databaseName),
+            ProvisioningConnectionString = RailwayPostgresConnectionString.Create(
+                "shortline.proxy.rlwy.net",
+                27543,
                 "postgres",
                 "postgres-password",
                 databaseName),
