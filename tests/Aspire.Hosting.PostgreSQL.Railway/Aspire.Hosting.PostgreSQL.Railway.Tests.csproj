@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Redis" />
+    <ProjectReference Include="..\..\src\Aspire.Hosting.PostgreSQL.Railway\Aspire.Hosting.PostgreSQL.Railway.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\samples\AppHostSnippets\Projects\Api.cs" Link="Samples\Projects\Api.cs" />
+    <Compile Include="..\..\samples\AppHostSnippets\RailwayPostgresAppHostSnippets.cs" Link="Samples\RailwayPostgresAppHostSnippets.cs" />
+  </ItemGroup>
+
+</Project>

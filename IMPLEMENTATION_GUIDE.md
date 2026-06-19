@@ -2,12 +2,12 @@
 
 ## Assumptions
 
-- This repository should mirror `V:\Aspire.Hosting.Upstash.Redis` as closely as practical.
+- This repository should mirror `V:\Aspire.Hosting.PostgreSQL.Railway` as closely as practical.
 - The public package identity will be `PinguApps.Aspire.Hosting.PostgreSQL.Railway`.
 - The local resource of record should be Aspire's built-in `PostgresServerResource`.
 - Local development should keep normal Aspire PostgreSQL behavior and must not call Railway.
 - Deploy behavior should be opt-in through a `PublishToRailway(...)` extension.
-- Ownership modes should match the Upstash package shape: `CreateOnly`, `ExistingOnly`, `CreateOrAdopt`.
+- Ownership modes should match the Railway package shape: `CreateOnly`, `ExistingOnly`, `CreateOrAdopt`.
 - Railway deployment needs at least API token, project id, environment id, and PostgreSQL service name.
 - Railway PostgreSQL exposes `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, and `DATABASE_URL`.
 
@@ -21,13 +21,13 @@
 ## Stage Checklist
 
 - [x] Stage 0: Inspect source and target repositories.
-  - Verify: target repo is empty except `.git`; source repo has full Upstash package structure.
+  - Verify: target repo is empty except `.git`; source repo has full Railway package structure.
   - Commit: planning guide.
 
-- [ ] Stage 1: Bootstrap repository structure from Upstash Redis.
+- [x] Stage 1: Bootstrap repository structure from Upstash Redis.
   - Copy source repo content excluding `.git`, `.vs`, `artifacts`, `.env`, and other generated/local-only files.
   - Rename solution/project folders and package metadata to PostgreSQL Railway.
-  - Verify: `rg "Upstash|upstash|Redis|redis"` shows only expected pre-port remnants.
+  - Verify: `rg "Upstash|upstash"` has no matches; Redis resource/test remnants remain for Stage 2.
   - Commit: bootstrapped structure.
 
 - [ ] Stage 2: Port public API and application model surface.
@@ -52,7 +52,7 @@
   - Commit: deployment pipeline.
 
 - [ ] Stage 5: Port test suite and fake Railway harness.
-  - Rename features/steps/support from Upstash Redis to Railway PostgreSQL.
+  - Rename features/steps/support from Railway PostgreSQL to Railway PostgreSQL.
   - Replace provider concepts with Railway project/environment/service/template concepts.
   - Preserve live-test pattern, skipping cleanly without `.env` credentials.
   - Verify: full non-live test suite passes.
@@ -67,7 +67,7 @@
 - [ ] Stage 7: Documentation and repository guidance.
   - Update `README.md`, `docs/`, samples, `.env.example`, and `AGENTS.md`.
   - Document Railway credentials and expected Aspire parameter environment variables.
-  - Verify: docs samples compile and no Upstash leftovers remain except historical references if intentionally kept.
+  - Verify: docs samples compile and no Railway leftovers remain except historical references if intentionally kept.
   - Commit: docs.
 
 - [ ] Stage 8: Final verification.
@@ -79,6 +79,6 @@
 ## Open Questions
 
 - Should the integration deploy into an existing Railway project/environment only, or also create projects/environments when missing?
-- Should the Railway PostgreSQL service name be the stable remote identity, matching Upstash database name semantics?
+- Should the Railway PostgreSQL service name be the stable remote identity, matching Railway database name semantics?
 - Should app-facing output use Railway internal references such as `${{Postgres.DATABASE_URL}}`, rendered variables, or direct connection strings resolved during deploy?
 - Should we expose only the standard Aspire PostgreSQL connection string, or also Railway's individual `PG*` outputs?
