@@ -31,10 +31,10 @@
   - Verify: `rg "Upstash|upstash"` has no matches; Redis resource/test remnants remain for Stage 2.
   - Commit: bootstrapped structure.
 
-- [ ] Stage 2: Port public API and application model surface.
+- [x] Stage 2: Port public API and application model surface.
   - Replace Redis-specific extension methods with PostgreSQL server extensions.
   - Preserve deploy-only behavior, pipeline registration pattern, TypeScript export attributes, DTO style, and output annotations.
-  - Verify: package builds far enough to expose intended API shape or fails only on unported provider types.
+  - Verify: source package builds cleanly with `dotnet build src\Aspire.Hosting.PostgreSQL.Railway\Aspire.Hosting.PostgreSQL.Railway.csproj --no-restore`.
   - Commit: public API surface.
 
 - [ ] Stage 3: Implement Railway provider client.

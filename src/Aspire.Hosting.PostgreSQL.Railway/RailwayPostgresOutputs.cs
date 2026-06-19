@@ -4,44 +4,54 @@ using Aspire.Hosting.PostgreSQL.Railway.Management;
 namespace Aspire.Hosting.PostgreSQL.Railway;
 
 /// <summary>
-/// Supplementary app-facing outputs populated from the deployed Railway PostgreSQL database.
+/// Supplementary app-facing outputs populated from the deployed Railway PostgreSQL service.
 /// </summary>
 [AspireExport("pinguapps.railway.postgres.outputs", ExposeProperties = true, ExposeMethods = false)]
 public sealed class RailwayPostgresOutputs
 {
-    internal RailwayPostgresOutputs(RedisResource resource)
+    internal RailwayPostgresOutputs(PostgresServerResource resource)
     {
         ArgumentNullException.ThrowIfNull(resource);
 
-        Endpoint = new(resource, RailwayPostgresOutputNames.Endpoint);
+        ServiceId = new(resource, RailwayPostgresOutputNames.ServiceId);
+        Host = new(resource, RailwayPostgresOutputNames.Host);
         Port = new(resource, RailwayPostgresOutputNames.Port);
+        UserName = new(resource, RailwayPostgresOutputNames.UserName);
         Password = new(resource, RailwayPostgresOutputNames.Password, secret: true);
-        Tls = new(resource, RailwayPostgresOutputNames.Tls);
         DatabaseName = new(resource, RailwayPostgresOutputNames.DatabaseName);
+        ConnectionString = new(resource, RailwayPostgresOutputNames.ConnectionString, secret: true);
         Properties =
         [
-            Endpoint,
+            ServiceId,
+            Host,
             Port,
+            UserName,
             Password,
-            Tls,
             DatabaseName,
+            ConnectionString,
         ];
     }
 
-    /// <summary>The deployed Railway PostgreSQL host endpoint.</summary>
-    public RailwayPostgresOutputReference Endpoint { get; }
+    /// <summary>The deployed Railway PostgreSQL service id.</summary>
+    public RailwayPostgresOutputReference ServiceId { get; }
+
+    /// <summary>The deployed Railway PostgreSQL host.</summary>
+    public RailwayPostgresOutputReference Host { get; }
 
     /// <summary>The deployed Railway PostgreSQL port.</summary>
     public RailwayPostgresOutputReference Port { get; }
 
+    /// <summary>The deployed Railway PostgreSQL user name.</summary>
+    public RailwayPostgresOutputReference UserName { get; }
+
     /// <summary>The deployed Railway PostgreSQL password.</summary>
     public RailwayPostgresOutputReference Password { get; }
 
-    /// <summary>Whether TLS is enabled for the deployed Railway PostgreSQL endpoint.</summary>
-    public RailwayPostgresOutputReference Tls { get; }
-
     /// <summary>The deployed Railway PostgreSQL database name.</summary>
     public RailwayPostgresOutputReference DatabaseName { get; }
+
+    /// <summary>The deployed Railway PostgreSQL connection string.</summary>
+    public RailwayPostgresOutputReference ConnectionString { get; }
 
     /// <summary>The stable supplementary output references.</summary>
     [AspireExportIgnore(Reason = "TypeScript AppHosts consume named output properties directly.")]
@@ -53,19 +63,20 @@ public sealed class RailwayPostgresOutputs
     {
         ArgumentNullException.ThrowIfNull(outputName);
 
-        return string.Equals(outputName, RailwayPostgresOutputNames.Password, StringComparison.Ordinal);
+        return string.Equals(outputName, RailwayPostgresOutputNames.Password, StringComparison.Ordinal)
+            || string.Equals(outputName, RailwayPostgresOutputNames.ConnectionString, StringComparison.Ordinal);
     }
 
     internal void Populate(RailwayPostgresDatabaseDetails database)
     {
         ArgumentNullException.ThrowIfNull(database);
 
-        RailwayPostgresConnectionOutput connectionOutput = RailwayPostgresConnectionOutput.FromDatabase(database);
-
-        Endpoint.SetValue(connectionOutput.Host);
-        Port.SetValue(connectionOutput.Port.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Password.SetValue(connectionOutput.Password);
-        Tls.SetValue(connectionOutput.Tls.ToString().ToLowerInvariant());
+        ServiceId.SetValue(database.ServiceId);
+        Host.SetValue(database.Host);
+        Port.SetValue(database.Port.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        UserName.SetValue(database.UserName);
+        Password.SetValue(database.Password);
         DatabaseName.SetValue(database.DatabaseName);
+        ConnectionString.SetValue(database.ConnectionString);
     }
 }

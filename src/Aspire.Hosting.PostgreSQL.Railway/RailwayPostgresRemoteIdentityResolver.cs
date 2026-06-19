@@ -14,165 +14,175 @@ internal sealed class RailwayPostgresRemoteIdentityResolver
     }
 
     public async Task<RailwayPostgresRemoteIdentityResolution> ResolveAsync(
-        string configuredDatabaseName,
+        string projectId,
+        string environmentId,
+        string configuredServiceName,
         RailwayPostgresRemoteIdentityState? cachedIdentity,
         CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(configuredDatabaseName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(configuredServiceName);
 
-        if (cachedIdentity is null)
+        if (cachedIdentity is null || cachedIdentity.ServiceName != configuredServiceName)
         {
-            return await ResolveByConfiguredNameAsync(configuredDatabaseName, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (cachedIdentity.DatabaseName != configuredDatabaseName)
-        {
-            // The explicit name is the v1 identity. A changed configured name selects a different
-            // remote database; this package never calls the provider rename endpoint.
-            return await ResolveByConfiguredNameAsync(configuredDatabaseName, cancellationToken).ConfigureAwait(false);
+            return await ResolveByConfiguredNameAsync(projectId, environmentId, configuredServiceName, cancellationToken).ConfigureAwait(false);
         }
 
         try
         {
-            RailwayPostgresDatabaseDetails cachedDatabase =
-                await _client.GetDatabaseAsync(cachedIdentity.ProviderDatabaseId, cancellationToken).ConfigureAwait(false);
+            RailwayPostgresDatabaseDetails cachedService = await _client
+                .GetServiceAsync(projectId, environmentId, cachedIdentity.ServiceId, cancellationToken)
+                .ConfigureAwait(false);
 
-            if (cachedDatabase.DatabaseId != cachedIdentity.ProviderDatabaseId)
+            if (cachedService.ServiceId != cachedIdentity.ServiceId)
             {
                 throw CreateMismatchedCachedDetailException(
-                    configuredDatabaseName,
-                    cachedIdentity.ProviderDatabaseId,
-                    cachedDatabase.DatabaseId);
+                    configuredServiceName,
+                    cachedIdentity.ServiceId,
+                    cachedService.ServiceId);
             }
 
             RailwayPostgresRemoteIdentityResolution resolution = RailwayPostgresRemoteIdentityResolution.FoundDatabase(
-                cachedDatabase,
+                cachedService,
                 resolvedFromCachedIdentity: true);
 
-            if (cachedDatabase.DatabaseName != configuredDatabaseName)
+            if (cachedService.ServiceName != configuredServiceName)
             {
                 resolution = await ResolveDriftedCachedIdentityAsync(
-                    configuredDatabaseName,
+                    projectId,
+                    environmentId,
+                    configuredServiceName,
                     cachedIdentity,
-                    cachedDatabase.DatabaseName,
+                    cachedService.ServiceName,
                     cancellationToken).ConfigureAwait(false);
             }
 
             await VerifyConfiguredNameResolvesToCachedIdentityAsync(
-                configuredDatabaseName,
-                cachedIdentity.ProviderDatabaseId,
+                projectId,
+                environmentId,
+                configuredServiceName,
+                cachedIdentity.ServiceId,
                 cancellationToken).ConfigureAwait(false);
 
             return resolution;
         }
         catch (RailwayPostgresProviderException exception) when (exception.FailureKind == RailwayPostgresProviderFailureKind.NotFound)
         {
-            return await ResolveMissingCachedIdentityAsync(configuredDatabaseName, cachedIdentity, cancellationToken)
+            return await ResolveMissingCachedIdentityAsync(projectId, environmentId, configuredServiceName, cachedIdentity, cancellationToken)
                 .ConfigureAwait(false);
         }
     }
 
     private async Task<RailwayPostgresRemoteIdentityResolution> ResolveByConfiguredNameAsync(
-        string configuredDatabaseName,
+        string projectId,
+        string environmentId,
+        string configuredServiceName,
         CancellationToken cancellationToken)
     {
-        RailwayPostgresDatabaseDetails? database =
-            await _client.FindDatabaseByNameAsync(configuredDatabaseName, cancellationToken).ConfigureAwait(false);
+        RailwayPostgresDatabaseDetails? service =
+            await _client.FindServiceByNameAsync(projectId, environmentId, configuredServiceName, cancellationToken).ConfigureAwait(false);
 
-        return database is null
+        return service is null
             ? RailwayPostgresRemoteIdentityResolution.NotFound()
-            : RailwayPostgresRemoteIdentityResolution.FoundDatabase(database);
+            : RailwayPostgresRemoteIdentityResolution.FoundDatabase(service);
     }
 
     private async Task<RailwayPostgresRemoteIdentityResolution> ResolveMissingCachedIdentityAsync(
-        string configuredDatabaseName,
+        string projectId,
+        string environmentId,
+        string configuredServiceName,
         RailwayPostgresRemoteIdentityState cachedIdentity,
         CancellationToken cancellationToken)
     {
-        RailwayPostgresDatabaseDetails? database =
-            await _client.FindDatabaseByNameAsync(configuredDatabaseName, cancellationToken).ConfigureAwait(false);
+        RailwayPostgresDatabaseDetails? service =
+            await _client.FindServiceByNameAsync(projectId, environmentId, configuredServiceName, cancellationToken).ConfigureAwait(false);
 
-        if (database is null)
+        if (service is null)
         {
             return RailwayPostgresRemoteIdentityResolution.NotFound();
         }
 
-        if (database.DatabaseId != cachedIdentity.ProviderDatabaseId)
+        if (service.ServiceId != cachedIdentity.ServiceId)
         {
             throw CreateUnsafeIdentityException(
-                configuredDatabaseName,
-                cachedIdentity.ProviderDatabaseId,
-                database.DatabaseId);
+                configuredServiceName,
+                cachedIdentity.ServiceId,
+                service.ServiceId);
         }
 
         return RailwayPostgresRemoteIdentityResolution.FoundDatabase(
-            database,
+            service,
             resolvedFromCachedIdentity: true);
     }
 
     private async Task<RailwayPostgresRemoteIdentityResolution> ResolveDriftedCachedIdentityAsync(
-        string configuredDatabaseName,
+        string projectId,
+        string environmentId,
+        string configuredServiceName,
         RailwayPostgresRemoteIdentityState cachedIdentity,
-        string currentCachedDatabaseName,
+        string currentCachedServiceName,
         CancellationToken cancellationToken)
     {
-        RailwayPostgresDatabaseDetails? database =
-            await _client.FindDatabaseByNameAsync(configuredDatabaseName, cancellationToken).ConfigureAwait(false);
+        RailwayPostgresDatabaseDetails? service =
+            await _client.FindServiceByNameAsync(projectId, environmentId, configuredServiceName, cancellationToken).ConfigureAwait(false);
 
-        if (database is not null && database.DatabaseId != cachedIdentity.ProviderDatabaseId)
+        if (service is not null && service.ServiceId != cachedIdentity.ServiceId)
         {
             throw CreateUnsafeIdentityException(
-                configuredDatabaseName,
-                cachedIdentity.ProviderDatabaseId,
-                database.DatabaseId);
+                configuredServiceName,
+                cachedIdentity.ServiceId,
+                service.ServiceId);
         }
 
         throw new RailwayPostgresProviderException(
             RailwayPostgresProviderFailureKind.ProviderContract,
             statusCode: null,
-            $"Cached Railway PostgreSQL database '{cachedIdentity.ProviderDatabaseId}' is now named '{currentCachedDatabaseName}', not configured name '{configuredDatabaseName}'. Refusing to reconcile a drifted remote identity.");
+            $"Cached Railway PostgreSQL service '{cachedIdentity.ServiceId}' is now named '{currentCachedServiceName}', not configured name '{configuredServiceName}'. Refusing to reconcile a drifted remote identity.");
     }
 
     private async Task VerifyConfiguredNameResolvesToCachedIdentityAsync(
-        string configuredDatabaseName,
-        string cachedProviderDatabaseId,
+        string projectId,
+        string environmentId,
+        string configuredServiceName,
+        string cachedServiceId,
         CancellationToken cancellationToken)
     {
-        RailwayPostgresDatabaseDetails database =
-            await _client.FindDatabaseByNameAsync(configuredDatabaseName, cancellationToken).ConfigureAwait(false)
+        RailwayPostgresDatabaseDetails service =
+            await _client.FindServiceByNameAsync(projectId, environmentId, configuredServiceName, cancellationToken).ConfigureAwait(false)
             ?? throw new RailwayPostgresProviderException(
                 RailwayPostgresProviderFailureKind.ProviderContract,
                 statusCode: null,
-                $"Cached Railway PostgreSQL database '{cachedProviderDatabaseId}' still reports configured name '{configuredDatabaseName}', but the configured name lookup returned no database. Refusing to reconcile an unverifiable cached remote identity.");
+                $"Cached Railway PostgreSQL service '{cachedServiceId}' still reports configured name '{configuredServiceName}', but the configured name lookup returned no service. Refusing to reconcile an unverifiable cached remote identity.");
 
-        if (database.DatabaseId != cachedProviderDatabaseId)
+        if (service.ServiceId != cachedServiceId)
         {
             throw CreateUnsafeIdentityException(
-                configuredDatabaseName,
-                cachedProviderDatabaseId,
-                database.DatabaseId);
+                configuredServiceName,
+                cachedServiceId,
+                service.ServiceId);
         }
     }
 
     private static RailwayPostgresProviderException CreateUnsafeIdentityException(
-        string configuredDatabaseName,
-        string cachedProviderDatabaseId,
-        string resolvedProviderDatabaseId)
+        string configuredServiceName,
+        string cachedServiceId,
+        string resolvedServiceId)
     {
         return new RailwayPostgresProviderException(
             RailwayPostgresProviderFailureKind.ProviderContract,
             statusCode: null,
-            $"Configured Railway PostgreSQL database name '{configuredDatabaseName}' resolves to provider id '{resolvedProviderDatabaseId}', but cached identity expected provider id '{cachedProviderDatabaseId}'. Refusing to adopt a different database for the same configured name.");
+            $"Configured Railway PostgreSQL service name '{configuredServiceName}' resolves to service id '{resolvedServiceId}', but cached identity expected service id '{cachedServiceId}'. Refusing to adopt a different service for the same configured name.");
     }
 
     private static RailwayPostgresProviderException CreateMismatchedCachedDetailException(
-        string configuredDatabaseName,
-        string cachedProviderDatabaseId,
-        string resolvedProviderDatabaseId)
+        string configuredServiceName,
+        string cachedServiceId,
+        string resolvedServiceId)
     {
         return new RailwayPostgresProviderException(
             RailwayPostgresProviderFailureKind.ProviderContract,
             statusCode: null,
-            $"Cached Railway PostgreSQL database '{cachedProviderDatabaseId}' detail response returned provider id '{resolvedProviderDatabaseId}' for configured name '{configuredDatabaseName}'. Refusing to reconcile a mismatched cached remote identity.");
+            $"Cached Railway PostgreSQL service '{cachedServiceId}' detail response returned service id '{resolvedServiceId}' for configured name '{configuredServiceName}'. Refusing to reconcile a mismatched cached remote identity.");
     }
 }

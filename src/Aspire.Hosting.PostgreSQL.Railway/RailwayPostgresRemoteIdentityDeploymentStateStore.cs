@@ -8,8 +8,8 @@ namespace Aspire.Hosting.PostgreSQL.Railway;
 internal sealed class RailwayPostgresRemoteIdentityDeploymentStateStore
 {
     private const string SectionPrefix = "Aspire.Hosting.PostgreSQL.Railway.RemoteIdentity";
-    private const string DatabaseNameKey = "databaseName";
-    private const string ProviderDatabaseIdKey = "providerDatabaseId";
+    private const string ServiceNameKey = "serviceName";
+    private const string ServiceIdKey = "serviceId";
 
     private readonly IDeploymentStateManager _stateManager;
 
@@ -25,16 +25,16 @@ internal sealed class RailwayPostgresRemoteIdentityDeploymentStateStore
         DeploymentStateSection section =
             await _stateManager.AcquireSectionAsync(BuildSectionName(resourceName), cancellationToken).ConfigureAwait(false);
 
-        string? databaseName = section.Data.TryGetPropertyValue(DatabaseNameKey, out JsonNode? databaseNameValue)
-            ? (string?)databaseNameValue
+        string? serviceName = section.Data.TryGetPropertyValue(ServiceNameKey, out JsonNode? serviceNameValue)
+            ? (string?)serviceNameValue
             : null;
-        string? providerDatabaseId = section.Data.TryGetPropertyValue(ProviderDatabaseIdKey, out JsonNode? providerDatabaseIdValue)
-            ? (string?)providerDatabaseIdValue
+        string? serviceId = section.Data.TryGetPropertyValue(ServiceIdKey, out JsonNode? serviceIdValue)
+            ? (string?)serviceIdValue
             : null;
 
-        return string.IsNullOrWhiteSpace(databaseName) || string.IsNullOrWhiteSpace(providerDatabaseId)
+        return string.IsNullOrWhiteSpace(serviceName) || string.IsNullOrWhiteSpace(serviceId)
             ? null
-            : new RailwayPostgresRemoteIdentityState(databaseName, providerDatabaseId);
+            : new RailwayPostgresRemoteIdentityState(serviceName, serviceId);
     }
 
     public async Task SaveAsync(
@@ -47,8 +47,8 @@ internal sealed class RailwayPostgresRemoteIdentityDeploymentStateStore
         DeploymentStateSection section =
             await _stateManager.AcquireSectionAsync(BuildSectionName(resourceName), cancellationToken).ConfigureAwait(false);
 
-        section.Data[DatabaseNameKey] = identityState.DatabaseName;
-        section.Data[ProviderDatabaseIdKey] = identityState.ProviderDatabaseId;
+        section.Data[ServiceNameKey] = identityState.ServiceName;
+        section.Data[ServiceIdKey] = identityState.ServiceId;
 
         await _stateManager.SaveSectionAsync(section, cancellationToken).ConfigureAwait(false);
     }

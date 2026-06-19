@@ -2,24 +2,26 @@ namespace Aspire.Hosting.PostgreSQL.Railway.Management;
 
 internal interface IRailwayPostgresManagementClient
 {
-    public Task<IReadOnlyList<RailwayPostgresDatabaseSummary>> ListDatabasesAsync(CancellationToken cancellationToken);
+    public Task<RailwayPostgresDatabaseDetails?> FindServiceByNameAsync(
+        string projectId,
+        string environmentId,
+        string serviceName,
+        CancellationToken cancellationToken);
 
-    public Task<RailwayPostgresDatabaseDetails> GetDatabaseAsync(string databaseId, CancellationToken cancellationToken);
+    public Task<RailwayPostgresDatabaseDetails> GetServiceAsync(
+        string projectId,
+        string environmentId,
+        string serviceId,
+        CancellationToken cancellationToken);
 
-    public Task<RailwayPostgresDatabaseDetails?> FindDatabaseByNameAsync(string databaseName, CancellationToken cancellationToken);
-
-    public Task<RailwayPostgresDatabaseDetails> CreateDatabaseAsync(RailwayPostgresCreateDatabaseRequest request, CancellationToken cancellationToken);
-
-    public Task UpdateReadRegionsAsync(string databaseId, RailwayPostgresUpdateRegionsRequest request, CancellationToken cancellationToken);
-
-    public Task ChangePlanAsync(string databaseId, RailwayPostgresChangePlanRequest request, CancellationToken cancellationToken);
-
-    public Task UpdateBudgetAsync(string databaseId, RailwayPostgresUpdateBudgetRequest request, CancellationToken cancellationToken);
-
-    public Task SetEvictionAsync(string databaseId, bool enabled, CancellationToken cancellationToken);
+    public Task<RailwayPostgresDatabaseDetails> CreateServiceAsync(
+        RailwayPostgresCreateServiceRequest request,
+        CancellationToken cancellationToken);
 
     public Task<RailwayPostgresDatabaseDetails> WaitUntilReadyAsync(
-        string databaseId,
+        string projectId,
+        string environmentId,
+        string serviceId,
         RailwayPostgresReadinessPollingOptions pollingOptions,
         CancellationToken cancellationToken);
 }

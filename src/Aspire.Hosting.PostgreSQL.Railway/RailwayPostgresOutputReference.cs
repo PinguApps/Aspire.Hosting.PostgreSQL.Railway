@@ -8,10 +8,10 @@ namespace Aspire.Hosting.PostgreSQL.Railway;
 [AspireExport("pinguapps.railway.postgres.outputReference", ExposeProperties = false, ExposeMethods = false)]
 public sealed class RailwayPostgresOutputReference : IExpressionValue, IValueProvider, IManifestExpressionProvider, IValueWithReferences
 {
-    private readonly RedisResource _resource;
+    private readonly PostgresServerResource _resource;
     private string? _value;
 
-    internal RailwayPostgresOutputReference(RedisResource resource, string name, bool secret = false)
+    internal RailwayPostgresOutputReference(PostgresServerResource resource, string name, bool secret = false)
     {
         ArgumentNullException.ThrowIfNull(resource);
 

@@ -1,4 +1,3 @@
-using System.Globalization;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.PostgreSQL.Railway.Management;
 
@@ -6,21 +5,17 @@ namespace Aspire.Hosting.PostgreSQL.Railway;
 
 internal sealed class RailwayPostgresConnectionOutput : IResourceWithConnectionString
 {
-    private const string TlsSuffix = ",ssl=true";
-
-    public RailwayPostgresConnectionOutput(
-        string host,
-        int port,
-        string password,
-        bool tls)
+    public RailwayPostgresConnectionOutput(RailwayPostgresDatabaseDetails database)
     {
-        Host = host;
-        Port = port;
-        Password = password;
-        Tls = tls;
+        ArgumentNullException.ThrowIfNull(database);
 
-        ConnectionString = BuildConnectionString(host, port, password, tls);
-        Uri = BuildUri(host, port, password, tls);
+        ServiceId = database.ServiceId;
+        Host = database.Host;
+        Port = database.Port;
+        UserName = database.UserName;
+        Password = database.Password;
+        DatabaseName = database.DatabaseName;
+        ConnectionString = database.ConnectionString;
         ConnectionStringExpression = ReferenceExpression.Create($"{ConnectionString}");
     }
 
@@ -28,17 +23,19 @@ internal sealed class RailwayPostgresConnectionOutput : IResourceWithConnectionS
 
     public ResourceAnnotationCollection Annotations { get; } = [];
 
+    public string ServiceId { get; }
+
     public string Host { get; }
 
     public int Port { get; }
 
+    public string UserName { get; }
+
     public string Password { get; }
 
-    public bool Tls { get; }
+    public string DatabaseName { get; }
 
     public string ConnectionString { get; }
-
-    public string Uri { get; }
 
     public ReferenceExpression ConnectionStringExpression { get; }
 
@@ -50,113 +47,9 @@ internal sealed class RailwayPostgresConnectionOutput : IResourceWithConnectionS
     public IEnumerable<KeyValuePair<string, ReferenceExpression>> GetConnectionProperties()
     {
         yield return new("Host", ReferenceExpression.Create($"{Host}"));
-        yield return new("Port", ReferenceExpression.Create($"{Port.ToString(CultureInfo.InvariantCulture)}"));
+        yield return new("Port", ReferenceExpression.Create($"{Port.ToString(System.Globalization.CultureInfo.InvariantCulture)}"));
+        yield return new("Username", ReferenceExpression.Create($"{UserName}"));
         yield return new("Password", ReferenceExpression.Create($"{Password}"));
-        yield return new("Uri", ReferenceExpression.Create($"{Uri}"));
-    }
-
-    public static RailwayPostgresConnectionOutput FromDatabase(RailwayPostgresDatabaseDetails database)
-    {
-        ArgumentNullException.ThrowIfNull(database);
-
-        string host = NormalizeHost(database.DatabaseId, database.Endpoint);
-        string password = NormalizePassword(database.DatabaseId, database.Password);
-
-        if (database.Port <= 0)
-        {
-            throw new RailwayPostgresProviderException(
-                RailwayPostgresProviderFailureKind.ProviderContract,
-                statusCode: null,
-                $"Railway PostgreSQL returned database '{database.DatabaseId}' without a valid port.");
-        }
-
-        if (!database.Tls)
-        {
-            throw new RailwayPostgresProviderException(
-                RailwayPostgresProviderFailureKind.ProviderContract,
-                statusCode: null,
-                $"Railway PostgreSQL returned database '{database.DatabaseId}' with TLS disabled.");
-        }
-
-        return new RailwayPostgresConnectionOutput(host, database.Port, password, tls: true);
-    }
-
-    private static string BuildConnectionString(string host, int port, string password, bool tls)
-    {
-        string tlsSuffix = tls ? TlsSuffix : string.Empty;
-
-        return $"{host}:{port.ToString(CultureInfo.InvariantCulture)},password={password}{tlsSuffix}";
-    }
-
-    private static string BuildUri(string host, int port, string password, bool tls)
-    {
-        string scheme = tls ? "rediss" : "redis";
-        string escapedPassword = System.Uri.EscapeDataString(password);
-
-        return $"{scheme}://:{escapedPassword}@{host}:{port.ToString(CultureInfo.InvariantCulture)}";
-    }
-
-    private static string NormalizeHost(string databaseId, string? endpoint)
-    {
-        if (string.IsNullOrWhiteSpace(endpoint))
-        {
-            throw new RailwayPostgresProviderException(
-                RailwayPostgresProviderFailureKind.ProviderContract,
-                statusCode: null,
-                $"Railway PostgreSQL returned database '{databaseId}' without an endpoint.");
-        }
-
-        string host = endpoint.Trim();
-
-        if (host.Contains("://", StringComparison.Ordinal)
-            || host.Contains('/', StringComparison.Ordinal)
-            || host.Contains('?', StringComparison.Ordinal)
-            || host.Contains('#', StringComparison.Ordinal)
-            || host.Contains(':', StringComparison.Ordinal)
-            || host.Any(char.IsWhiteSpace))
-        {
-            throw new RailwayPostgresProviderException(
-                RailwayPostgresProviderFailureKind.ProviderContract,
-                statusCode: null,
-                $"Railway PostgreSQL returned database '{databaseId}' with endpoint '{endpoint}', which is not a host name.");
-        }
-
-        UriHostNameType hostNameType = System.Uri.CheckHostName(host);
-
-        if (hostNameType == UriHostNameType.IPv4)
-        {
-            return host;
-        }
-
-        if (hostNameType == UriHostNameType.Dns && host.Contains('.', StringComparison.Ordinal))
-        {
-            return host;
-        }
-
-        throw new RailwayPostgresProviderException(
-            RailwayPostgresProviderFailureKind.ProviderContract,
-            statusCode: null,
-            $"Railway PostgreSQL returned database '{databaseId}' with endpoint '{endpoint}', which is not a complete host name.");
-    }
-
-    private static string NormalizePassword(string databaseId, string? password)
-    {
-        if (string.IsNullOrWhiteSpace(password))
-        {
-            throw new RailwayPostgresProviderException(
-                RailwayPostgresProviderFailureKind.ProviderContract,
-                statusCode: null,
-                $"Railway PostgreSQL returned database '{databaseId}' without credentials.");
-        }
-
-        if (password.Contains(',', StringComparison.Ordinal) || password.Any(char.IsControl))
-        {
-            throw new RailwayPostgresProviderException(
-                RailwayPostgresProviderFailureKind.ProviderContract,
-                statusCode: null,
-                $"Railway PostgreSQL returned database '{databaseId}' with a password that cannot be represented in the Aspire Redis connection string format.");
-        }
-
-        return password;
+        yield return new("Database", ReferenceExpression.Create($"{DatabaseName}"));
     }
 }

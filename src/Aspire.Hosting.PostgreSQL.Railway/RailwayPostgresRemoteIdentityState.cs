@@ -2,16 +2,16 @@ namespace Aspire.Hosting.PostgreSQL.Railway;
 
 internal sealed class RailwayPostgresRemoteIdentityState
 {
-    public RailwayPostgresRemoteIdentityState(string databaseName, string providerDatabaseId)
+    public RailwayPostgresRemoteIdentityState(string serviceName, string serviceId)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(providerDatabaseId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
 
-        DatabaseName = databaseName;
-        ProviderDatabaseId = providerDatabaseId;
+        ServiceName = serviceName;
+        ServiceId = serviceId;
     }
 
-    public string DatabaseName { get; }
+    public string ServiceName { get; }
 
-    public string ProviderDatabaseId { get; }
+    public string ServiceId { get; }
 }

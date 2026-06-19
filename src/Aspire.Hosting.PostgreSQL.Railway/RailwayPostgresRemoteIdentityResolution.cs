@@ -32,7 +32,7 @@ internal sealed class RailwayPostgresRemoteIdentityResolution
 
         return new(
             database,
-            new RailwayPostgresRemoteIdentityState(database.DatabaseName, database.DatabaseId),
+            new RailwayPostgresRemoteIdentityState(database.ServiceName, database.ServiceId),
             resolvedFromCachedIdentity);
     }
 }

@@ -11,11 +11,11 @@ internal static partial class RailwayPostgresDeploymentDiagnostics
     {
         ArgumentNullException.ThrowIfNull(value);
 
-        string redacted = RedisConnectionStringPattern().Replace(value, Redacted);
+        string redacted = PostgresConnectionStringPattern().Replace(value, Redacted);
 
         if (deployment is not null)
         {
-            redacted = RedactKnownSecret(redacted, deployment.ManagementCredentials.ApiKey);
+            redacted = RedactKnownSecret(redacted, deployment.ManagementCredentials.ApiToken);
         }
 
         if (database is not null)
@@ -57,6 +57,6 @@ internal static partial class RailwayPostgresDeploymentDiagnostics
             : value.Replace(secret, Redacted, StringComparison.Ordinal);
     }
 
-    [GeneratedRegex(@"rediss?://\S+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex RedisConnectionStringPattern();
+    [GeneratedRegex(@"postgres(?:ql)?://\S+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex PostgresConnectionStringPattern();
 }

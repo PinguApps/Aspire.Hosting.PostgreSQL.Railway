@@ -6,107 +6,102 @@ using Aspire.Hosting.Pipelines;
 namespace Aspire.Hosting.PostgreSQL.Railway;
 
 /// <summary>
-/// Provides Railway PostgreSQL publishing extensions for Aspire Redis resources.
+/// Provides Railway PostgreSQL publishing extensions for Aspire PostgreSQL server resources.
 /// </summary>
 public static class RailwayPostgresBuilderExtensions
 {
     /// <summary>
-    /// Provides Railway PostgreSQL publishing extensions for a standard Aspire Redis resource.
+    /// Provides Railway PostgreSQL publishing extensions for a standard Aspire PostgreSQL server resource.
     /// </summary>
-    /// <param name="builder">The existing Redis resource builder returned from <c>AddRedis</c>.</param>
-    extension(IResourceBuilder<RedisResource> builder)
+    /// <param name="builder">The existing PostgreSQL server resource builder returned from <c>AddPostgres</c>.</param>
+    extension(IResourceBuilder<PostgresServerResource> builder)
     {
         /// <summary>
-        /// Marks a standard Aspire Redis resource for Railway PostgreSQL deployment.
+        /// Marks a standard Aspire PostgreSQL server resource for Railway PostgreSQL deployment.
         /// </summary>
-        /// <param name="databaseName">The explicit remote Railway PostgreSQL database name.</param>
-        /// <param name="accountEmail">The infrastructure-only Railway account email parameter.</param>
-        /// <param name="apiKey">The infrastructure-only Railway API key parameter.</param>
-        /// <param name="ownershipMode">The requested ownership mode for the remote database.</param>
-        /// <param name="configure">Optional Railway PostgreSQL settings to reconcile at deploy time.</param>
-        /// <returns>The same Redis resource builder for normal Aspire chaining.</returns>
-        /// <exception cref="ArgumentNullException">
-        /// <paramref name="databaseName"/>, <paramref name="accountEmail"/>, or <paramref name="apiKey"/> is null.
-        /// </exception>
-        /// <exception cref="ArgumentOutOfRangeException"><paramref name="ownershipMode"/> is not a defined ownership mode.</exception>
-        /// <exception cref="InvalidOperationException">The configured options contain an unsupported combination.</exception>
+        /// <param name="serviceName">The explicit remote Railway PostgreSQL service name.</param>
+        /// <param name="projectId">The Railway project id parameter.</param>
+        /// <param name="environmentId">The Railway environment id parameter.</param>
+        /// <param name="apiToken">The infrastructure-only Railway API token parameter.</param>
+        /// <param name="ownershipMode">The requested ownership mode for the remote service.</param>
+        /// <param name="configure">Optional Railway PostgreSQL deployment settings.</param>
+        /// <returns>The same PostgreSQL server resource builder for normal Aspire chaining.</returns>
         [AspireExportIgnore(Reason = "C# callback overloads are not a stable guest-language transport contract.")]
-        public IResourceBuilder<RedisResource> PublishToRailway(
-            IResourceBuilder<ParameterResource> databaseName,
-            IResourceBuilder<ParameterResource> accountEmail,
-            IResourceBuilder<ParameterResource> apiKey,
+        public IResourceBuilder<PostgresServerResource> PublishToRailway(
+            IResourceBuilder<ParameterResource> serviceName,
+            IResourceBuilder<ParameterResource> projectId,
+            IResourceBuilder<ParameterResource> environmentId,
+            IResourceBuilder<ParameterResource> apiToken,
             RailwayPostgresOwnershipMode ownershipMode = RailwayPostgresOwnershipMode.CreateOrAdopt,
             Action<RailwayPostgresDeploymentOptions>? configure = null)
         {
-            ArgumentNullException.ThrowIfNull(databaseName);
+            ArgumentNullException.ThrowIfNull(serviceName);
 
             return builder.PublishToRailway(
-                RailwayPostgresValue.FromParameter(databaseName),
-                accountEmail,
-                apiKey,
+                RailwayPostgresValue.FromParameter(serviceName),
+                projectId,
+                environmentId,
+                apiToken,
                 ownershipMode,
                 configure);
         }
 
         /// <summary>
-        /// Marks a standard Aspire Redis resource for Railway PostgreSQL deployment.
+        /// Marks a standard Aspire PostgreSQL server resource for Railway PostgreSQL deployment.
         /// </summary>
-        /// <param name="databaseName">The explicit remote Railway PostgreSQL database name.</param>
-        /// <param name="accountEmail">The infrastructure-only Railway account email parameter.</param>
-        /// <param name="apiKey">The infrastructure-only Railway API key parameter.</param>
-        /// <param name="ownershipMode">The requested ownership mode for the remote database.</param>
-        /// <param name="configure">Optional Railway PostgreSQL settings to reconcile at deploy time.</param>
-        /// <returns>The same Redis resource builder for normal Aspire chaining.</returns>
-        /// <exception cref="ArgumentNullException">
-        /// <paramref name="databaseName"/>, <paramref name="accountEmail"/>, or <paramref name="apiKey"/> is null.
-        /// </exception>
-        /// <exception cref="ArgumentOutOfRangeException"><paramref name="ownershipMode"/> is not a defined ownership mode.</exception>
-        /// <exception cref="InvalidOperationException">The configured options contain an unsupported combination.</exception>
+        /// <param name="serviceName">The explicit remote Railway PostgreSQL service name.</param>
+        /// <param name="projectId">The Railway project id parameter.</param>
+        /// <param name="environmentId">The Railway environment id parameter.</param>
+        /// <param name="apiToken">The infrastructure-only Railway API token parameter.</param>
+        /// <param name="ownershipMode">The requested ownership mode for the remote service.</param>
+        /// <param name="configure">Optional Railway PostgreSQL deployment settings.</param>
+        /// <returns>The same PostgreSQL server resource builder for normal Aspire chaining.</returns>
         [AspireExportIgnore(Reason = "C# callback overloads are not a stable guest-language transport contract.")]
-        public IResourceBuilder<RedisResource> PublishToRailway(
-            RailwayPostgresValue databaseName,
-            IResourceBuilder<ParameterResource> accountEmail,
-            IResourceBuilder<ParameterResource> apiKey,
+        public IResourceBuilder<PostgresServerResource> PublishToRailway(
+            RailwayPostgresValue serviceName,
+            IResourceBuilder<ParameterResource> projectId,
+            IResourceBuilder<ParameterResource> environmentId,
+            IResourceBuilder<ParameterResource> apiToken,
             RailwayPostgresOwnershipMode ownershipMode = RailwayPostgresOwnershipMode.CreateOrAdopt,
             Action<RailwayPostgresDeploymentOptions>? configure = null)
         {
-            ArgumentNullException.ThrowIfNull(accountEmail);
-            ArgumentNullException.ThrowIfNull(apiKey);
+            ArgumentNullException.ThrowIfNull(projectId);
+            ArgumentNullException.ThrowIfNull(environmentId);
+            ArgumentNullException.ThrowIfNull(apiToken);
 
             return builder.PublishToRailway(
-                databaseName,
-                RailwayPostgresValue.FromParameter(accountEmail),
-                RailwayPostgresValue.FromParameter(apiKey),
+                serviceName,
+                RailwayPostgresValue.FromParameter(projectId),
+                RailwayPostgresValue.FromParameter(environmentId),
+                RailwayPostgresValue.FromParameter(apiToken),
                 ownershipMode,
                 configure);
         }
 
         /// <summary>
-        /// Marks a standard Aspire Redis resource for Railway PostgreSQL deployment.
+        /// Marks a standard Aspire PostgreSQL server resource for Railway PostgreSQL deployment.
         /// </summary>
-        /// <param name="databaseName">The explicit remote Railway PostgreSQL database name.</param>
-        /// <param name="accountEmail">The infrastructure-only Railway account email value.</param>
-        /// <param name="apiKey">The infrastructure-only Railway API key value.</param>
-        /// <param name="ownershipMode">The requested ownership mode for the remote database.</param>
-        /// <param name="configure">Optional Railway PostgreSQL settings to reconcile at deploy time.</param>
-        /// <returns>The same Redis resource builder for normal Aspire chaining.</returns>
-        /// <exception cref="ArgumentNullException">
-        /// <paramref name="databaseName"/>, <paramref name="accountEmail"/>, or <paramref name="apiKey"/> is null.
-        /// </exception>
-        /// <exception cref="ArgumentOutOfRangeException"><paramref name="ownershipMode"/> is not a defined ownership mode.</exception>
-        /// <exception cref="InvalidOperationException">The configured options contain an unsupported combination.</exception>
+        /// <param name="serviceName">The explicit remote Railway PostgreSQL service name.</param>
+        /// <param name="projectId">The Railway project id value.</param>
+        /// <param name="environmentId">The Railway environment id value.</param>
+        /// <param name="apiToken">The infrastructure-only Railway API token value.</param>
+        /// <param name="ownershipMode">The requested ownership mode for the remote service.</param>
+        /// <param name="configure">Optional Railway PostgreSQL deployment settings.</param>
+        /// <returns>The same PostgreSQL server resource builder for normal Aspire chaining.</returns>
         [AspireExportIgnore(Reason = "C# callback overloads are not a stable guest-language transport contract.")]
-        public IResourceBuilder<RedisResource> PublishToRailway(
-            RailwayPostgresValue databaseName,
-            RailwayPostgresValue accountEmail,
-            RailwayPostgresValue apiKey,
+        public IResourceBuilder<PostgresServerResource> PublishToRailway(
+            RailwayPostgresValue serviceName,
+            RailwayPostgresValue projectId,
+            RailwayPostgresValue environmentId,
+            RailwayPostgresValue apiToken,
             RailwayPostgresOwnershipMode ownershipMode = RailwayPostgresOwnershipMode.CreateOrAdopt,
             Action<RailwayPostgresDeploymentOptions>? configure = null)
         {
             ArgumentNullException.ThrowIfNull(builder);
-            ArgumentNullException.ThrowIfNull(databaseName);
-            ArgumentNullException.ThrowIfNull(accountEmail);
-            ArgumentNullException.ThrowIfNull(apiKey);
+            ArgumentNullException.ThrowIfNull(serviceName);
+            ArgumentNullException.ThrowIfNull(projectId);
+            ArgumentNullException.ThrowIfNull(environmentId);
+            ArgumentNullException.ThrowIfNull(apiToken);
 
             if (!Enum.IsDefined(ownershipMode))
             {
@@ -115,17 +110,17 @@ public static class RailwayPostgresBuilderExtensions
 
             RailwayPostgresDeploymentOptions options = new();
             configure?.Invoke(options);
-            options.ToProviderOptions();
 
             RemoveExistingRailwayPipelineStep(builder.Resource);
             global::Aspire.Hosting.ResourceBuilderExtensions.ExcludeFromManifest(builder);
 
             builder.WithAnnotation(
                 new RailwayPostgresDeploymentAnnotation(
-                    databaseName,
+                    serviceName,
                     ownershipMode,
-                    accountEmail,
-                    apiKey,
+                    projectId,
+                    environmentId,
+                    apiToken,
                     options),
                 ResourceAnnotationMutationBehavior.Replace);
 
@@ -133,7 +128,7 @@ public static class RailwayPostgresBuilderExtensions
                 new RailwayPostgresOutputsAnnotation(new RailwayPostgresOutputs(builder.Resource)),
                 ResourceAnnotationMutationBehavior.Replace);
 
-            RedisResource resource = builder.Resource;
+            PostgresServerResource resource = builder.Resource;
 
             return builder.WithPipelineStepFactory(
                 $"railway-postgres-{builder.Resource.Name}",
@@ -141,84 +136,50 @@ public static class RailwayPostgresBuilderExtensions
                 dependsOn: [WellKnownPipelineSteps.DeployPrereq],
                 requiredBy: [WellKnownPipelineSteps.Deploy],
                 tags: [WellKnownPipelineTags.ProvisionInfrastructure],
-                description: "Provision or reconcile the Railway PostgreSQL database.");
+                description: "Provision or reconcile the Railway PostgreSQL service.");
         }
     }
 
     /// <summary>
-    /// Marks a standard Aspire Redis resource for Railway PostgreSQL deployment from a TypeScript AppHost.
+    /// Marks a standard Aspire PostgreSQL server resource for Railway PostgreSQL deployment from a TypeScript AppHost.
     /// </summary>
-    /// <param name="builder">The existing Redis resource builder returned from <c>AddRedis</c>.</param>
-    /// <param name="databaseName">The explicit remote Railway PostgreSQL database name parameter.</param>
-    /// <param name="accountEmail">The infrastructure-only Railway account email parameter.</param>
-    /// <param name="apiKey">The infrastructure-only Railway API key parameter.</param>
-    /// <param name="options">Optional Railway PostgreSQL settings to reconcile at deploy time.</param>
-    /// <returns>The same Redis resource builder for normal Aspire chaining.</returns>
-    /// <exception cref="ArgumentNullException">
-    /// <paramref name="builder"/>, <paramref name="databaseName"/>, <paramref name="accountEmail"/>, or <paramref name="apiKey"/> is null.
-    /// </exception>
-    /// <exception cref="ArgumentOutOfRangeException">The ownership mode is not a defined ownership mode.</exception>
-    /// <exception cref="InvalidOperationException">The configured options contain an unsupported combination.</exception>
+    /// <param name="builder">The existing PostgreSQL server resource builder returned from <c>AddPostgres</c>.</param>
+    /// <param name="serviceName">The explicit remote Railway PostgreSQL service name parameter.</param>
+    /// <param name="projectId">The Railway project id parameter.</param>
+    /// <param name="environmentId">The Railway environment id parameter.</param>
+    /// <param name="apiToken">The infrastructure-only Railway API token parameter.</param>
+    /// <param name="options">Optional Railway PostgreSQL deployment settings.</param>
+    /// <returns>The same PostgreSQL server resource builder for normal Aspire chaining.</returns>
     [AspireExport("pinguapps.railway.postgres.publishToRailway", MethodName = "publishToRailway")]
-    public static IResourceBuilder<RedisResource> PublishToRailwayForTypeScript(
-        this IResourceBuilder<RedisResource> builder,
-        IResourceBuilder<ParameterResource> databaseName,
-        IResourceBuilder<ParameterResource> accountEmail,
-        IResourceBuilder<ParameterResource> apiKey,
+    public static IResourceBuilder<PostgresServerResource> PublishToRailwayForTypeScript(
+        this IResourceBuilder<PostgresServerResource> builder,
+        IResourceBuilder<ParameterResource> serviceName,
+        IResourceBuilder<ParameterResource> projectId,
+        IResourceBuilder<ParameterResource> environmentId,
+        IResourceBuilder<ParameterResource> apiToken,
         RailwayPostgresDeploymentOptionsDto? options = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(databaseName);
+        ArgumentNullException.ThrowIfNull(serviceName);
 
         RailwayPostgresDeploymentOptionsDto deploymentOptions = options ?? new();
 
         return builder.PublishToRailway(
-            RailwayPostgresValue.FromParameter(databaseName),
-            accountEmail,
-            apiKey,
+            RailwayPostgresValue.FromParameter(serviceName),
+            projectId,
+            environmentId,
+            apiToken,
             deploymentOptions.GetOwnershipMode(),
             targetOptions => CopyOptions(deploymentOptions.ToDeploymentOptions(), targetOptions));
     }
 
     private static void CopyOptions(RailwayPostgresDeploymentOptions source, RailwayPostgresDeploymentOptions target)
     {
-        if (source.ExplicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.Platform)))
-        {
-            target.Platform = source.Platform;
-        }
-
-        if (source.ExplicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.PrimaryRegion)))
-        {
-            target.PrimaryRegion = source.PrimaryRegion;
-        }
-
-        if (source.ExplicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.ReadRegions)))
-        {
-            target.ReadRegions = source.ReadRegions;
-        }
-
-        if (source.ExplicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.Plan)))
-        {
-            target.Plan = source.Plan;
-        }
-
-        if (source.ExplicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.Budget)))
-        {
-            target.Budget = source.Budget;
-        }
-
-        if (source.ExplicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.Eviction)))
-        {
-            target.Eviction = source.Eviction;
-        }
-
-        if (source.ExplicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.Tls)))
-        {
-            target.Tls = source.Tls;
-        }
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(target);
     }
 
-    private static void RemoveExistingRailwayPipelineStep(RedisResource resource)
+    private static void RemoveExistingRailwayPipelineStep(PostgresServerResource resource)
     {
         for (int annotationIndex = 0; annotationIndex < resource.Annotations.Count; annotationIndex++)
         {

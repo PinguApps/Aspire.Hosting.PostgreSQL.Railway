@@ -5,22 +5,32 @@ namespace Aspire.Hosting.PostgreSQL.Railway;
 internal sealed class RailwayPostgresResolvedDeployment
 {
     public RailwayPostgresResolvedDeployment(
-        string databaseName,
+        string serviceName,
+        string projectId,
+        string environmentId,
         RailwayPostgresOwnershipMode ownershipMode,
         RailwayPostgresManagementCredentials managementCredentials,
         RailwayPostgresProviderDeploymentOptions options)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
         ArgumentNullException.ThrowIfNull(managementCredentials);
         ArgumentNullException.ThrowIfNull(options);
 
-        DatabaseName = databaseName;
+        ServiceName = serviceName;
+        ProjectId = projectId;
+        EnvironmentId = environmentId;
         OwnershipMode = ownershipMode;
         ManagementCredentials = managementCredentials;
         Options = options;
     }
 
-    public string DatabaseName { get; }
+    public string ServiceName { get; }
+
+    public string ProjectId { get; }
+
+    public string EnvironmentId { get; }
 
     public RailwayPostgresOwnershipMode OwnershipMode { get; }
 

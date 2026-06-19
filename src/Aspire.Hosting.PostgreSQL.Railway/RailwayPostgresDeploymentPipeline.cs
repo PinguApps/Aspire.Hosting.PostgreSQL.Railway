@@ -14,16 +14,16 @@ internal static class RailwayPostgresDeploymentPipeline
 {
     private static readonly HttpClient _managementHttpClient = new()
     {
-        BaseAddress = new Uri("https://api.railway.com/v2/"),
+        BaseAddress = new Uri("https://backboard.railway.com/graphql/v2"),
     };
 
     private static readonly Action<ILogger, string, string?, string?, string?, Exception?> _deploymentProgress =
         LoggerMessage.Define<string, string?, string?, string?>(
             LogLevel.Information,
             new EventId(1, "RailwayPostgresDeploymentProgress"),
-            "{Message} Resource='{ResourceName}' Database='{DatabaseName}' ProviderDatabaseId='{ProviderDatabaseId}'.");
+            "{Message} Resource='{ResourceName}' Service='{ServiceName}' ServiceId='{ServiceId}'.");
 
-    public static async Task ExecuteAsync(RedisResource resource, PipelineStepContext context)
+    public static async Task ExecuteAsync(PostgresServerResource resource, PipelineStepContext context)
     {
         ArgumentNullException.ThrowIfNull(resource);
         ArgumentNullException.ThrowIfNull(context);
@@ -31,13 +31,13 @@ internal static class RailwayPostgresDeploymentPipeline
         LoggerRailwayPostgresDeploymentProgressReporter progressReporter = new(context.Logger, resource.Name);
         progressReporter.Report(RailwayPostgresDeploymentDiagnostics.CreateProgress(
             RailwayPostgresDeploymentPhase.ResolvingConfiguration,
-            $"Resolving Railway PostgreSQL deployment configuration for Redis resource '{resource.Name}'.",
+            $"Resolving Railway PostgreSQL deployment configuration for PostgreSQL server resource '{resource.Name}'.",
             resource.Name,
             databaseName: null,
             providerDatabaseId: null));
 
         RailwayPostgresDeploymentState state = resource.GetRailwayPostgresDeploymentState()
-            ?? throw new InvalidOperationException($"Redis resource '{resource.Name}' is missing Railway deployment state.");
+            ?? throw new InvalidOperationException($"PostgreSQL server resource '{resource.Name}' is missing Railway deployment state.");
 
         RailwayPostgresResolvedDeployment deployment =
             await RailwayPostgresDeployTimeResolver.ResolveAsync(state, resource, context).ConfigureAwait(false);
@@ -58,8 +58,7 @@ internal static class RailwayPostgresDeploymentPipeline
             context.CancellationToken)
             .ConfigureAwait(false);
 
-        resource.ApplyRailwayPostgresConnectionOutput(result.Database);
-        resource.TryGetRailwayPostgresOutputs()?.Populate(result.Database);
+        await ApplyOutputsAsync(resource, context, result.Database, context.CancellationToken).ConfigureAwait(false);
 
         await identityStore.SaveAsync(resource.Name, result.RemoteIdentity, context.CancellationToken).ConfigureAwait(false);
     }
@@ -131,6 +130,32 @@ internal static class RailwayPostgresDeploymentPipeline
         return result.Database;
     }
 
+    private static async Task ApplyOutputsAsync(
+        PostgresServerResource resource,
+        PipelineStepContext context,
+        RailwayPostgresDatabaseDetails service,
+        CancellationToken cancellationToken)
+    {
+        List<PostgresDatabaseResource> childDatabases =
+        [
+            .. context.Model.Resources
+            .OfType<PostgresDatabaseResource>()
+            .Where(database => ReferenceEquals(database.Parent, resource))
+        ];
+
+        await RailwayPostgresDatabaseProvisioner
+            .EnsureDatabasesAsync(service, childDatabases.Select(database => database.DatabaseName), cancellationToken)
+            .ConfigureAwait(false);
+
+        resource.ApplyRailwayPostgresConnectionOutput(service);
+        resource.TryGetRailwayPostgresOutputs()?.Populate(service);
+
+        foreach (PostgresDatabaseResource childDatabase in childDatabases)
+        {
+            childDatabase.ApplyRailwayPostgresConnectionOutput(service.WithDatabaseName(childDatabase.DatabaseName));
+        }
+    }
+
     private static async Task<RailwayPostgresCreateFlowResult> ExecuteCoreAsync(
         RailwayPostgresResolvedDeployment deployment,
         IRailwayPostgresManagementClient client,
@@ -145,57 +170,40 @@ internal static class RailwayPostgresDeploymentPipeline
         Report(
             progressReporter,
             RailwayPostgresDeploymentPhase.ResolvingConfiguration,
-            $"Resolved Railway PostgreSQL deployment configuration for database '{deployment.DatabaseName}'.",
+            $"Resolved Railway PostgreSQL deployment configuration for service '{deployment.ServiceName}'.",
             resourceName,
-            deployment.DatabaseName,
-            providerDatabaseId: null,
-            deployment,
-            database: null);
+            deployment.ServiceName,
+            providerDatabaseId: null);
 
         Report(
             progressReporter,
             RailwayPostgresDeploymentPhase.LocatingDatabase,
-            $"Locating Railway PostgreSQL database '{deployment.DatabaseName}' by configured name.",
+            $"Locating Railway PostgreSQL service '{deployment.ServiceName}' by configured name.",
             resourceName,
-            deployment.DatabaseName,
-            providerDatabaseId: null,
-            deployment,
-            database: null);
+            deployment.ServiceName,
+            providerDatabaseId: null);
 
         RailwayPostgresRemoteIdentityResolution remoteIdentity =
             await new RailwayPostgresRemoteIdentityResolver(client)
-                .ResolveAsync(deployment.DatabaseName, cachedIdentity, cancellationToken)
+                .ResolveAsync(deployment.ProjectId, deployment.EnvironmentId, deployment.ServiceName, cachedIdentity, cancellationToken)
                 .ConfigureAwait(false);
 
-        string? locatedProviderDatabaseId = remoteIdentity.Database?.DatabaseId;
+        string? locatedServiceId = remoteIdentity.Database?.ServiceId;
         string locatedMessage = remoteIdentity.Database is null
-            ? $"No Railway PostgreSQL database named '{deployment.DatabaseName}' was found."
-            : $"Located Railway PostgreSQL database '{deployment.DatabaseName}' with provider id '{RailwayPostgresDeploymentDiagnostics.FormatProviderDatabaseId(locatedProviderDatabaseId)}'.";
+            ? $"No Railway PostgreSQL service named '{deployment.ServiceName}' was found."
+            : $"Located Railway PostgreSQL service '{deployment.ServiceName}' with service id '{RailwayPostgresDeploymentDiagnostics.FormatProviderDatabaseId(locatedServiceId)}'.";
 
         Report(
             progressReporter,
             RailwayPostgresDeploymentPhase.LocatingDatabase,
             locatedMessage,
             resourceName,
-            deployment.DatabaseName,
-            locatedProviderDatabaseId,
-            deployment,
-            remoteIdentity.Database);
-
-        Report(
-            progressReporter,
-            RailwayPostgresDeploymentPhase.ValidatingImmutableDrift,
-            $"Validating immutable Railway PostgreSQL settings for database '{deployment.DatabaseName}'.",
-            resourceName,
-            deployment.DatabaseName,
-            locatedProviderDatabaseId,
-            deployment,
-            remoteIdentity.Database);
+            deployment.ServiceName,
+            locatedServiceId);
 
         RailwayPostgresOwnershipResolutionRequest ownershipRequest = new(
-            deployment.DatabaseName,
+            deployment.ServiceName,
             deployment.OwnershipMode,
-            deployment.Options,
             remoteIdentity.ResolvedFromCachedIdentity,
             remoteIdentity.Database);
         RailwayPostgresOwnershipResolutionResult ownership = RailwayPostgresOwnershipResolver.Resolve(
@@ -213,31 +221,13 @@ internal static class RailwayPostgresDeploymentPipeline
 
         Report(
             progressReporter,
-            RailwayPostgresDeploymentPhase.ReconcilingMutableSettings,
-            $"Reconciling explicit mutable Railway PostgreSQL settings for database '{deployment.DatabaseName}'.",
-            resourceName,
-            deployment.DatabaseName,
-            createResult.Database.DatabaseId,
-            deployment,
-            createResult.Database);
-
-        RailwayPostgresDatabaseDetails reconciledDatabase = await new RailwayPostgresReconciler(client)
-            .ReconcileAsync(createResult.Database, deployment.Options, cancellationToken)
-            .ConfigureAwait(false);
-
-        Report(
-            progressReporter,
             RailwayPostgresDeploymentPhase.RetrievingOutputs,
-            $"Retrieved Redis connection outputs for Railway PostgreSQL database '{deployment.DatabaseName}' with provider id '{RailwayPostgresDeploymentDiagnostics.FormatProviderDatabaseId(reconciledDatabase.DatabaseId)}'.",
+            $"Retrieved PostgreSQL connection outputs for Railway PostgreSQL service '{deployment.ServiceName}' with service id '{RailwayPostgresDeploymentDiagnostics.FormatProviderDatabaseId(createResult.Database.ServiceId)}'.",
             resourceName,
-            deployment.DatabaseName,
-            reconciledDatabase.DatabaseId,
-            deployment,
-            reconciledDatabase);
+            deployment.ServiceName,
+            createResult.Database.ServiceId);
 
-        RailwayPostgresCreateFlowResult result = new(reconciledDatabase, createResult.Created);
-
-        return result;
+        return createResult;
     }
 
     private static void ReportOwnership(
@@ -251,12 +241,10 @@ internal static class RailwayPostgresDeploymentPipeline
             Report(
                 progressReporter,
                 RailwayPostgresDeploymentPhase.CreatingDatabase,
-                $"Creating Railway PostgreSQL database '{deployment.DatabaseName}'.",
+                $"Creating Railway PostgreSQL service '{deployment.ServiceName}'.",
                 resourceName,
-                deployment.DatabaseName,
-                providerDatabaseId: null,
-                deployment,
-                database: null);
+                deployment.ServiceName,
+                providerDatabaseId: null);
         }
     }
 
@@ -271,12 +259,10 @@ internal static class RailwayPostgresDeploymentPipeline
         Report(
             progressReporter,
             createResult.Created ? RailwayPostgresDeploymentPhase.CreatingDatabase : RailwayPostgresDeploymentPhase.LocatingDatabase,
-            $"{action} Railway PostgreSQL database '{deployment.DatabaseName}' with provider id '{RailwayPostgresDeploymentDiagnostics.FormatProviderDatabaseId(createResult.Database.DatabaseId)}'.",
+            $"{action} Railway PostgreSQL service '{deployment.ServiceName}' with service id '{RailwayPostgresDeploymentDiagnostics.FormatProviderDatabaseId(createResult.Database.ServiceId)}'.",
             resourceName,
-            deployment.DatabaseName,
-            createResult.Database.DatabaseId,
-            deployment,
-            createResult.Database);
+            deployment.ServiceName,
+            createResult.Database.ServiceId);
     }
 
     private static void Report(
@@ -284,19 +270,15 @@ internal static class RailwayPostgresDeploymentPipeline
         RailwayPostgresDeploymentPhase phase,
         string message,
         string? resourceName,
-        string? databaseName,
-        string? providerDatabaseId,
-        RailwayPostgresResolvedDeployment deployment,
-        RailwayPostgresDatabaseDetails? database)
+        string? serviceName,
+        string? providerDatabaseId)
     {
         progressReporter?.Report(RailwayPostgresDeploymentDiagnostics.CreateProgress(
             phase,
             message,
             resourceName,
-            databaseName,
-            providerDatabaseId,
-            deployment,
-            database));
+            serviceName,
+            providerDatabaseId));
     }
 
     private sealed class LoggerRailwayPostgresDeploymentProgressReporter : IRailwayPostgresDeploymentProgressReporter

@@ -8,29 +8,52 @@ namespace Aspire.Hosting.PostgreSQL.Railway.Management;
 
 internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManagementClient
 {
-    private const string RedisPath = "redis";
-    private const string RedisDatabasePath = $"{RedisPath}/database";
-    private const string RedisDatabasesPath = $"{RedisDatabasePath}s";
-    private const string UpdateRegionsAction = "update-regions";
-    private const string ChangePlanAction = "change-plan";
-    private const string UpdateBudgetAction = "update-budget";
-    private const string EnableEvictionAction = "enable-eviction";
-    private const string DisableEvictionAction = "disable-eviction";
+    private const string PostgresTemplateId = "b55da7dc-09be-4140-bc65-1284d15d349c";
+    private const string PostgresTemplateServiceId = "b55da7dc-09be-4140-bc65-1284b15d349b";
 
-    private static string BuildRedisDatabasePath(string databaseId) => $"{RedisDatabasePath}/{Uri.EscapeDataString(databaseId)}";
+    private const string ListServicesQuery = """
+        query ListRailwayServices($projectId: String!) {
+          project(id: $projectId) {
+            services(first: 100) {
+              edges {
+                node {
+                  id
+                  name
+                  projectId
+                  deletedAt
+                }
+              }
+            }
+          }
+        }
+        """;
 
-    private static string BuildUpdateRegionsPath(string databaseId) => $"{RedisPath}/{UpdateRegionsAction}/{Uri.EscapeDataString(databaseId)}";
+    private const string GetServiceQuery = """
+        query GetRailwayPostgresService($projectId: String!, $environmentId: String!, $serviceId: String!) {
+          service(id: $serviceId) {
+            id
+            name
+            projectId
+            deletedAt
+          }
+          serviceInstance(serviceId: $serviceId, environmentId: $environmentId) {
+            latestDeployment {
+              status
+            }
+          }
+          variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId)
+        }
+        """;
 
-    private static string BuildChangePlanPath(string databaseId) => $"{RedisPath}/{Uri.EscapeDataString(databaseId)}/{ChangePlanAction}";
-
-    private static string BuildUpdateBudgetPath(string databaseId) => $"{RedisPath}/{UpdateBudgetAction}/{Uri.EscapeDataString(databaseId)}";
-
-    private static string BuildEvictionPath(string databaseId, bool enabled)
-    {
-        string action = enabled ? EnableEvictionAction : DisableEvictionAction;
-
-        return $"{RedisPath}/{action}/{Uri.EscapeDataString(databaseId)}";
-    }
+    private const string CreateServiceMutation = """
+        mutation CreateRailwayPostgresService($input: ServiceCreateInput!) {
+          serviceCreate(input: $input) {
+            id
+            name
+            projectId
+          }
+        }
+        """;
 
     private readonly HttpClient _httpClient;
     private readonly RailwayPostgresManagementCredentials _credentials;
@@ -48,155 +71,147 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         _httpClient = httpClient;
         _credentials = credentials;
 
-        _httpClient.BaseAddress ??= new Uri("https://api.railway.com/v2/");
+        _httpClient.BaseAddress ??= new Uri("https://backboard.railway.com/graphql/v2");
     }
 
-    public async Task<IReadOnlyList<RailwayPostgresDatabaseSummary>> ListDatabasesAsync(CancellationToken cancellationToken)
+    public async Task<RailwayPostgresDatabaseDetails?> FindServiceByNameAsync(
+        string projectId,
+        string environmentId,
+        string serviceName,
+        CancellationToken cancellationToken)
     {
-        return await SendAsync<IReadOnlyList<RailwayPostgresDatabaseSummary>>(
-            HttpMethod.Get,
-            RedisDatabasesPath,
-            requestBody: null,
-            requireCredentials: false,
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+
+        ListServicesData data = await SendAsync<ListServicesData>(
+            ListServicesQuery,
+            new { projectId },
             cancellationToken).ConfigureAwait(false);
-    }
 
-    public async Task<RailwayPostgresDatabaseDetails> GetDatabaseAsync(string databaseId, CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(databaseId);
-
-        return await SendAsync<RailwayPostgresDatabaseDetails>(
-            HttpMethod.Get,
-            BuildRedisDatabasePath(databaseId),
-            requestBody: null,
-            requireCredentials: true,
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<RailwayPostgresDatabaseDetails?> FindDatabaseByNameAsync(string databaseName, CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
-
-        IReadOnlyList<RailwayPostgresDatabaseSummary> databases = await ListDatabasesAsync(cancellationToken).ConfigureAwait(false);
-        List<RailwayPostgresDatabaseSummary> matches = [.. databases.Where(database => database.DatabaseName == databaseName).Take(2)];
+        List<RailwayServiceNode> matches =
+        [
+            .. data.Project.Services.Edges
+            .Select(edge => edge.Node)
+            .Where(service => service.DeletedAt is null)
+            .Where(service => string.Equals(service.Name, serviceName, StringComparison.Ordinal))
+            .Take(2)
+        ];
 
         if (matches.Count > 1)
         {
             throw new RailwayPostgresProviderException(
                 RailwayPostgresProviderFailureKind.ProviderContract,
                 statusCode: null,
-                $"Railway PostgreSQL returned more than one database named '{databaseName}'.");
+                $"Railway returned more than one service named '{serviceName}' in project '{projectId}'.");
         }
 
-        RailwayPostgresDatabaseSummary? match = matches.SingleOrDefault();
+        RailwayServiceNode? match = matches.SingleOrDefault();
 
-        if (match is null)
-        {
-            return null;
-        }
+        return match is null
+            ? null
+            : await GetServiceAsync(projectId, environmentId, match.Id, cancellationToken).ConfigureAwait(false);
+    }
 
-        RailwayPostgresDatabaseDetails database = await GetDatabaseAsync(match.DatabaseId, cancellationToken).ConfigureAwait(false);
+    public async Task<RailwayPostgresDatabaseDetails> GetServiceAsync(
+        string projectId,
+        string environmentId,
+        string serviceId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
 
-        if (database.DatabaseId != match.DatabaseId)
+        GetServiceData data = await SendAsync<GetServiceData>(
+            GetServiceQuery,
+            new { projectId, environmentId, serviceId },
+            cancellationToken).ConfigureAwait(false);
+
+        RailwayServiceNode service = data.Service
+            ?? throw new RailwayPostgresProviderException(
+                RailwayPostgresProviderFailureKind.NotFound,
+                statusCode: null,
+                $"Railway service '{serviceId}' was not found.");
+
+        if (service.DeletedAt is not null)
         {
             throw new RailwayPostgresProviderException(
-                RailwayPostgresProviderFailureKind.ProviderContract,
+                RailwayPostgresProviderFailureKind.NotFound,
                 statusCode: null,
-                $"Railway PostgreSQL database '{match.DatabaseId}' was listed as '{databaseName}' but detail lookup returned provider id '{database.DatabaseId}'.");
+                $"Railway service '{serviceId}' is deleted.");
         }
 
-        ThrowIfDatabaseNameMismatch(database, match.DatabaseId, databaseName);
+        IReadOnlyDictionary<string, string> variables = ParseVariables(data.Variables);
+        string? status = data.ServiceInstance?.LatestDeployment?.Status;
 
-        return database;
+        return new RailwayPostgresDatabaseDetails
+        {
+            ServiceId = service.Id,
+            ServiceName = service.Name,
+            ProjectId = projectId,
+            EnvironmentId = environmentId,
+            Host = GetVariableOrEmpty(variables, "PGHOST"),
+            Port = ParsePort(GetVariableOrEmpty(variables, "PGPORT"), service.Id),
+            UserName = GetVariableOrEmpty(variables, "PGUSER"),
+            Password = GetVariableOrEmpty(variables, "PGPASSWORD"),
+            DatabaseName = GetVariableOrEmpty(variables, "PGDATABASE"),
+            ConnectionString = GetVariableOrEmpty(variables, "DATABASE_URL"),
+            LatestDeploymentStatus = status,
+        };
     }
 
-    public async Task<RailwayPostgresDatabaseDetails> CreateDatabaseAsync(
-        RailwayPostgresCreateDatabaseRequest request,
+    public async Task<RailwayPostgresDatabaseDetails> CreateServiceAsync(
+        RailwayPostgresCreateServiceRequest request,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        return await SendAsync<RailwayPostgresDatabaseDetails>(
-            HttpMethod.Post,
-            RedisDatabasePath,
-            request,
-            requireCredentials: false,
+        CreateServiceData data = await SendAsync<CreateServiceData>(
+            CreateServiceMutation,
+            new
+            {
+                input = new
+                {
+                    name = request.ServiceName,
+                    projectId = request.ProjectId,
+                    environmentId = request.EnvironmentId,
+                    templateId = PostgresTemplateId,
+                    templateServiceId = PostgresTemplateServiceId,
+                }
+            },
             cancellationToken).ConfigureAwait(false);
-    }
 
-    public async Task UpdateReadRegionsAsync(
-        string databaseId,
-        RailwayPostgresUpdateRegionsRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(databaseId);
-        ArgumentNullException.ThrowIfNull(request);
+        RailwayServiceNode service = data.ServiceCreate;
 
-        await SendOkAsync(
-            HttpMethod.Post,
-            BuildUpdateRegionsPath(databaseId),
-            request,
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task ChangePlanAsync(
-        string databaseId,
-        RailwayPostgresChangePlanRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(databaseId);
-        ArgumentNullException.ThrowIfNull(request);
-
-        await SendOkAsync(
-            HttpMethod.Post,
-            BuildChangePlanPath(databaseId),
-            request,
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task UpdateBudgetAsync(
-        string databaseId,
-        RailwayPostgresUpdateBudgetRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(databaseId);
-        ArgumentNullException.ThrowIfNull(request);
-
-        await SendOkAsync(
-            HttpMethod.Patch,
-            BuildUpdateBudgetPath(databaseId),
-            request,
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task SetEvictionAsync(string databaseId, bool enabled, CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(databaseId);
-
-        await SendOkAsync(
-            HttpMethod.Post,
-            BuildEvictionPath(databaseId, enabled),
-            requestBody: null,
+        return await GetServiceAsync(
+            request.ProjectId,
+            request.EnvironmentId,
+            service.Id,
             cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<RailwayPostgresDatabaseDetails> WaitUntilReadyAsync(
-        string databaseId,
+        string projectId,
+        string environmentId,
+        string serviceId,
         RailwayPostgresReadinessPollingOptions pollingOptions,
         CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(databaseId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
         ArgumentNullException.ThrowIfNull(pollingOptions);
 
         Stopwatch stopwatch = Stopwatch.StartNew();
 
         while (true)
         {
-            RailwayPostgresDatabaseDetails database = await GetDatabaseAsync(databaseId, cancellationToken).ConfigureAwait(false);
+            RailwayPostgresDatabaseDetails service = await GetServiceAsync(projectId, environmentId, serviceId, cancellationToken).ConfigureAwait(false);
 
-            if (IsReady(database))
+            if (service.HasConnectionVariables)
             {
-                return database;
+                return service;
             }
 
             if (stopwatch.Elapsed >= pollingOptions.Timeout)
@@ -204,47 +219,21 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                 throw new RailwayPostgresProviderException(
                     RailwayPostgresProviderFailureKind.ProviderContract,
                     statusCode: null,
-                    $"Railway PostgreSQL database '{databaseId}' did not become active before the readiness timeout.");
+                    $"Railway PostgreSQL service '{serviceId}' did not expose PostgreSQL connection variables before the readiness timeout.");
             }
 
             await Task.Delay(pollingOptions.Delay, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private static bool IsReady(RailwayPostgresDatabaseDetails database)
-    {
-        return string.Equals(database.State, "active", StringComparison.OrdinalIgnoreCase)
-            && string.IsNullOrWhiteSpace(database.ModifyingState);
-    }
-
-    private async Task SendOkAsync(
-        HttpMethod method,
-        string requestUri,
-        object? requestBody,
+    private async Task<TData> SendAsync<TData>(
+        string query,
+        object variables,
         CancellationToken cancellationToken)
     {
-        await SendAsync<string>(
-            method,
-            requestUri,
-            requestBody,
-            requireCredentials: false,
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task<TResponse> SendAsync<TResponse>(
-        HttpMethod method,
-        string requestUri,
-        object? requestBody,
-        bool requireCredentials,
-        CancellationToken cancellationToken)
-    {
-        using HttpRequestMessage request = new(method, requestUri);
+        using HttpRequestMessage request = new(HttpMethod.Post, string.Empty);
         request.Headers.Authorization = _credentials.CreateAuthorizationHeader();
-
-        if (requestBody is not null)
-        {
-            request.Content = JsonContent.Create(requestBody, options: _serializerOptions);
-        }
+        request.Content = JsonContent.Create(new RailwayGraphQlRequest(query, variables), options: _serializerOptions);
 
         using HttpResponseMessage response = await SendRequestAsync(request, cancellationToken).ConfigureAwait(false);
         string responseContent = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -254,53 +243,39 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             throw CreateFailureException(response.StatusCode, responseContent);
         }
 
-        if (typeof(TResponse) == typeof(string))
-        {
-            try
-            {
-                return (TResponse)(object)(JsonSerializer.Deserialize<string>(responseContent, _serializerOptions)
-                    ?? throw new RailwayPostgresProviderException(
-                        RailwayPostgresProviderFailureKind.ProviderContract,
-                        response.StatusCode,
-                        "Railway PostgreSQL returned an empty or unrecognized response body."));
-            }
-            catch (JsonException exception)
-            {
-                throw new RailwayPostgresProviderException(
-                    RailwayPostgresProviderFailureKind.ProviderContract,
-                    response.StatusCode,
-                    "Railway PostgreSQL returned an invalid JSON response body.",
-                    exception);
-            }
-        }
-
-        TResponse deserialized;
+        RailwayGraphQlResponse<TData> deserialized;
 
         try
         {
-            deserialized = JsonSerializer.Deserialize<TResponse>(responseContent, _serializerOptions)
+            deserialized = JsonSerializer.Deserialize<RailwayGraphQlResponse<TData>>(responseContent, _serializerOptions)
                 ?? throw new RailwayPostgresProviderException(
                     RailwayPostgresProviderFailureKind.ProviderContract,
                     response.StatusCode,
-                    "Railway PostgreSQL returned an empty or unrecognized response body.");
+                    "Railway returned an empty or unrecognized GraphQL response body.");
         }
         catch (JsonException exception)
         {
             throw new RailwayPostgresProviderException(
                 RailwayPostgresProviderFailureKind.ProviderContract,
                 response.StatusCode,
-                "Railway PostgreSQL returned an invalid JSON response body.",
+                "Railway returned an invalid JSON response body.",
                 exception);
         }
 
-        _ = requireCredentials && deserialized is RailwayPostgresDatabaseDetails { Password: null or "" } details
+        if (deserialized.Errors is { Count: > 0 })
+        {
+            throw new RailwayPostgresProviderException(
+                RailwayPostgresProviderFailureKind.Unexpected,
+                response.StatusCode,
+                $"Railway GraphQL request failed: {RedactSecrets(string.Join("; ", deserialized.Errors.Select(error => error.Message)))}");
+        }
+
+        return deserialized.Data is null
             ? throw new RailwayPostgresProviderException(
                 RailwayPostgresProviderFailureKind.ProviderContract,
                 response.StatusCode,
-                $"Railway PostgreSQL returned database '{details.DatabaseId}' without credentials.")
-            : true;
-
-        return deserialized;
+                "Railway returned a GraphQL response without data.")
+            : deserialized.Data;
     }
 
     private async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -332,12 +307,10 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             _ => RailwayPostgresProviderFailureKind.Unexpected,
         };
 
-        string providerMessage = ExtractProviderMessage(responseContent);
-
         return new RailwayPostgresProviderException(
             failureKind,
             statusCode,
-            $"Railway PostgreSQL management API request failed with {(int)statusCode} {statusCode}: {providerMessage}");
+            $"Railway GraphQL request failed with {(int)statusCode} {statusCode}: {ExtractProviderMessage(responseContent)}");
     }
 
     private static RailwayPostgresProviderException CreateTransportFailureException(Exception exception)
@@ -345,56 +318,146 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         return new RailwayPostgresProviderException(
             RailwayPostgresProviderFailureKind.Transient,
             statusCode: null,
-            "Railway PostgreSQL management API request failed before a response was returned.",
+            "Railway GraphQL request failed before a response was returned.",
             exception);
     }
 
     private string ExtractProviderMessage(string responseContent)
     {
-        if (string.IsNullOrWhiteSpace(responseContent))
-        {
-            return "No provider response body was returned.";
-        }
-
-        string sanitizedContent = RedactSecrets(responseContent);
-
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(sanitizedContent);
-
-            if (document.RootElement.ValueKind == JsonValueKind.Object
-                && document.RootElement.TryGetProperty("error", out JsonElement errorElement)
-                && errorElement.ValueKind == JsonValueKind.String)
-            {
-                return errorElement.GetString() ?? "No provider error message was returned.";
-            }
-        }
-        catch (JsonException)
-        {
-            return sanitizedContent;
-        }
-
-        return sanitizedContent;
+        return string.IsNullOrWhiteSpace(responseContent)
+            ? "No provider response body was returned."
+            : RedactSecrets(responseContent);
     }
 
     private string RedactSecrets(string value)
     {
-        return value.Replace(_credentials.ApiKey, "[redacted]", StringComparison.Ordinal);
+        return value.Replace(_credentials.ApiToken, "[redacted]", StringComparison.Ordinal);
     }
 
-    private static void ThrowIfDatabaseNameMismatch(
-        RailwayPostgresDatabaseDetails database,
-        string listedDatabaseId,
-        string expectedDatabaseName)
+    private static IReadOnlyDictionary<string, string> ParseVariables(JsonElement variables)
     {
-        if (database.DatabaseName == expectedDatabaseName)
+        if (variables.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
         {
-            return;
+            return new Dictionary<string, string>(StringComparer.Ordinal);
         }
 
-        throw new RailwayPostgresProviderException(
-            RailwayPostgresProviderFailureKind.ProviderContract,
-            statusCode: null,
-            $"Railway PostgreSQL database '{listedDatabaseId}' was listed as '{expectedDatabaseName}' but detail lookup returned '{database.DatabaseName}'.");
+        if (variables.ValueKind != JsonValueKind.Object)
+        {
+            throw new RailwayPostgresProviderException(
+                RailwayPostgresProviderFailureKind.ProviderContract,
+                statusCode: null,
+                "Railway returned service variables in an unexpected shape.");
+        }
+
+        Dictionary<string, string> parsed = new(StringComparer.Ordinal);
+
+        foreach (JsonProperty property in variables.EnumerateObject())
+        {
+            parsed[property.Name] = property.Value.ValueKind == JsonValueKind.String
+                ? property.Value.GetString() ?? string.Empty
+                : property.Value.ToString();
+        }
+
+        return parsed;
+    }
+
+    private static string GetVariableOrEmpty(IReadOnlyDictionary<string, string> variables, string name)
+    {
+        return variables.TryGetValue(name, out string? value) ? value : string.Empty;
+    }
+
+    private static int ParsePort(string value, string serviceId)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 0;
+        }
+
+        return int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int port)
+            ? port
+            : throw new RailwayPostgresProviderException(
+                RailwayPostgresProviderFailureKind.ProviderContract,
+                statusCode: null,
+                $"Railway PostgreSQL service '{serviceId}' returned invalid PGPORT '{value}'.");
+    }
+
+    private sealed class RailwayGraphQlRequest
+    {
+        public RailwayGraphQlRequest(string query, object variables)
+        {
+            Query = query;
+            Variables = variables;
+        }
+
+        public string Query { get; }
+
+        public object Variables { get; }
+    }
+
+    private sealed class RailwayGraphQlResponse<TData>
+    {
+        public TData? Data { get; set; }
+
+        public IReadOnlyList<RailwayGraphQlError>? Errors { get; set; }
+    }
+
+    private sealed class RailwayGraphQlError
+    {
+        public string Message { get; set; } = string.Empty;
+    }
+
+    private sealed class ListServicesData
+    {
+        public RailwayProject Project { get; set; } = new();
+    }
+
+    private sealed class RailwayProject
+    {
+        public RailwayServiceConnection Services { get; set; } = new();
+    }
+
+    private sealed class RailwayServiceConnection
+    {
+        public IReadOnlyList<RailwayServiceEdge> Edges { get; set; } = [];
+    }
+
+    private sealed class RailwayServiceEdge
+    {
+        public RailwayServiceNode Node { get; set; } = new();
+    }
+
+    private sealed class GetServiceData
+    {
+        public RailwayServiceNode? Service { get; set; }
+
+        public RailwayServiceInstance? ServiceInstance { get; set; }
+
+        public JsonElement Variables { get; set; }
+    }
+
+    private sealed class CreateServiceData
+    {
+        public RailwayServiceNode ServiceCreate { get; set; } = new();
+    }
+
+    private sealed class RailwayServiceNode
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+
+        public string ProjectId { get; set; } = string.Empty;
+
+        public string? DeletedAt { get; set; }
+    }
+
+    private sealed class RailwayServiceInstance
+    {
+        public RailwayDeployment? LatestDeployment { get; set; }
+    }
+
+    private sealed class RailwayDeployment
+    {
+        public string? Status { get; set; }
     }
 }

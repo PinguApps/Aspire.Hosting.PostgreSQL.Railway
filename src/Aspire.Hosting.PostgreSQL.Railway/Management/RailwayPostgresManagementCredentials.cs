@@ -1,27 +1,20 @@
 using System.Net.Http.Headers;
-using System.Text;
 
 namespace Aspire.Hosting.PostgreSQL.Railway.Management;
 
 internal sealed class RailwayPostgresManagementCredentials
 {
-    public RailwayPostgresManagementCredentials(string accountEmail, string apiKey)
+    public RailwayPostgresManagementCredentials(string apiToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(accountEmail);
-        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiToken);
 
-        AccountEmail = accountEmail;
-        ApiKey = apiKey;
+        ApiToken = apiToken;
     }
 
-    public string AccountEmail { get; }
-
-    public string ApiKey { get; }
+    public string ApiToken { get; }
 
     public AuthenticationHeaderValue CreateAuthorizationHeader()
     {
-        string credentialValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{AccountEmail}:{ApiKey}"));
-
-        return new AuthenticationHeaderValue("Basic", credentialValue);
+        return new AuthenticationHeaderValue("Bearer", ApiToken);
     }
 }

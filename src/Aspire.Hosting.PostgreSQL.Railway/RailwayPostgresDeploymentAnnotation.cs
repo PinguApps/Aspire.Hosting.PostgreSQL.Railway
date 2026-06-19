@@ -5,17 +5,19 @@ namespace Aspire.Hosting.PostgreSQL.Railway;
 internal sealed class RailwayPostgresDeploymentAnnotation : IResourceAnnotation
 {
     public RailwayPostgresDeploymentAnnotation(
-        RailwayPostgresValue databaseName,
+        RailwayPostgresValue serviceName,
         RailwayPostgresOwnershipMode ownershipMode,
-        RailwayPostgresValue accountEmail,
-        RailwayPostgresValue apiKey,
+        RailwayPostgresValue projectId,
+        RailwayPostgresValue environmentId,
+        RailwayPostgresValue apiToken,
         RailwayPostgresDeploymentOptions options)
     {
         State = new RailwayPostgresDeploymentState(
-            databaseName,
+            serviceName,
             ownershipMode,
-            accountEmail,
-            apiKey,
+            projectId,
+            environmentId,
+            apiToken,
             options);
     }
 

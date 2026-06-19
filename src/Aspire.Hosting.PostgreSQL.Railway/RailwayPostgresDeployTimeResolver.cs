@@ -10,7 +10,7 @@ internal static class RailwayPostgresDeployTimeResolver
 {
     public static Task<RailwayPostgresResolvedDeployment> ResolveAsync(
         RailwayPostgresDeploymentState state,
-        RedisResource resource,
+        PostgresServerResource resource,
         PipelineStepContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -31,86 +31,18 @@ internal static class RailwayPostgresDeployTimeResolver
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(caller);
 
-        string databaseName = await ResolveRequiredStringAsync(state.DatabaseName, "database name", caller, executionContext, cancellationToken).ConfigureAwait(false);
-        string accountEmail = await ResolveRequiredStringAsync(state.AccountEmail, "account email", caller, executionContext, cancellationToken).ConfigureAwait(false);
-        string apiKey = await ResolveRequiredStringAsync(state.ApiKey, "API key", caller, executionContext, cancellationToken).ConfigureAwait(false);
-        RailwayPostgresProviderDeploymentOptions options = await ResolveOptionsAsync(state.Options, caller, executionContext, cancellationToken).ConfigureAwait(false);
+        string serviceName = await ResolveRequiredStringAsync(state.ServiceName, "service name", caller, executionContext, cancellationToken).ConfigureAwait(false);
+        string projectId = await ResolveRequiredStringAsync(state.ProjectId, "project id", caller, executionContext, cancellationToken).ConfigureAwait(false);
+        string environmentId = await ResolveRequiredStringAsync(state.EnvironmentId, "environment id", caller, executionContext, cancellationToken).ConfigureAwait(false);
+        string apiToken = await ResolveRequiredStringAsync(state.ApiToken, "API token", caller, executionContext, cancellationToken).ConfigureAwait(false);
 
         return new RailwayPostgresResolvedDeployment(
-            databaseName,
+            serviceName,
+            projectId,
+            environmentId,
             state.OwnershipMode,
-            new RailwayPostgresManagementCredentials(accountEmail, apiKey),
-            options);
-    }
-
-    private static async Task<RailwayPostgresProviderDeploymentOptions> ResolveOptionsAsync(
-        RailwayPostgresDeploymentOptions source,
-        IResource caller,
-        DistributedApplicationExecutionContext? executionContext,
-        CancellationToken cancellationToken)
-    {
-        RailwayPostgresDeploymentOptions resolved = new();
-        IReadOnlySet<string> explicitSettings = source.ExplicitSettings;
-
-        if (explicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.Platform)))
-        {
-            resolved.Platform = source.Platform is null
-                ? null
-                : RailwayPostgresValue.FromString(await ResolveOptionalStringAsync(source.Platform, "platform", caller, executionContext, cancellationToken).ConfigureAwait(false));
-        }
-
-        if (explicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.PrimaryRegion)))
-        {
-            resolved.PrimaryRegion = source.PrimaryRegion is null
-                ? null
-                : RailwayPostgresValue.FromString(await ResolveOptionalStringAsync(source.PrimaryRegion, "primary region", caller, executionContext, cancellationToken).ConfigureAwait(false));
-        }
-
-        if (explicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.ReadRegions)))
-        {
-            if (source.ReadRegions is null)
-            {
-                resolved.ReadRegions = null;
-            }
-            else
-            {
-                List<RailwayPostgresValue> readRegions = [];
-
-                foreach (RailwayPostgresValue readRegion in source.ReadRegions)
-                {
-                    string resolvedReadRegion = await ResolveOptionalStringAsync(readRegion, "read region", caller, executionContext, cancellationToken).ConfigureAwait(false);
-                    readRegions.Add(RailwayPostgresValue.FromString(resolvedReadRegion));
-                }
-
-                resolved.ReadRegions = readRegions;
-            }
-        }
-
-        if (explicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.Plan)))
-        {
-            resolved.Plan = source.Plan is null
-                ? null
-                : RailwayPostgresValue.FromString(await ResolveOptionalStringAsync(source.Plan, "plan", caller, executionContext, cancellationToken).ConfigureAwait(false));
-        }
-
-        if (explicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.Budget)))
-        {
-            resolved.Budget = source.Budget is null
-                ? null
-                : RailwayPostgresValue.FromString(await ResolveOptionalStringAsync(source.Budget, "budget", caller, executionContext, cancellationToken).ConfigureAwait(false));
-        }
-
-        if (explicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.Eviction)))
-        {
-            resolved.Eviction = source.Eviction;
-        }
-
-        if (explicitSettings.Contains(nameof(RailwayPostgresDeploymentOptions.Tls)))
-        {
-            resolved.Tls = source.Tls;
-        }
-
-        return resolved.ToProviderOptions();
+            new RailwayPostgresManagementCredentials(apiToken),
+            RailwayPostgresProviderDeploymentOptions.Empty);
     }
 
     private static async Task<string> ResolveRequiredStringAsync(

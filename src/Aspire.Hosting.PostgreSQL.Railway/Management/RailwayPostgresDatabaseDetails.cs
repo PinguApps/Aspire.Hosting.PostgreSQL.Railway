@@ -1,51 +1,54 @@
-using System.Text.Json.Serialization;
-
 namespace Aspire.Hosting.PostgreSQL.Railway.Management;
 
 internal sealed class RailwayPostgresDatabaseDetails
 {
-    [JsonPropertyName("database_id")]
-    public string DatabaseId { get; set; } = string.Empty;
+    public string ServiceId { get; init; } = string.Empty;
 
-    [JsonPropertyName("database_name")]
-    public string DatabaseName { get; set; } = string.Empty;
+    public string ServiceName { get; init; } = string.Empty;
 
-    [JsonPropertyName("endpoint")]
-    public string Endpoint { get; set; } = string.Empty;
+    public string ProjectId { get; init; } = string.Empty;
 
-    [JsonPropertyName("port")]
-    public int Port { get; set; }
+    public string EnvironmentId { get; init; } = string.Empty;
 
-    [JsonPropertyName("password")]
-    public string? Password { get; set; }
+    public string Host { get; init; } = string.Empty;
 
-    [JsonPropertyName("tls")]
-    public bool Tls { get; set; }
+    public int Port { get; init; }
 
-    [JsonPropertyName("state")]
-    public string? State { get; set; }
+    public string UserName { get; init; } = string.Empty;
 
-    [JsonPropertyName("modifying_state")]
-    public string? ModifyingState { get; set; }
+    public string Password { get; init; } = string.Empty;
 
-    [JsonPropertyName("primary_region")]
-    public string? PrimaryRegion { get; set; }
+    public string DatabaseName { get; init; } = string.Empty;
 
-    [JsonPropertyName("read_regions")]
-    public IReadOnlyList<string>? ReadRegions { get; set; }
+    public string ConnectionString { get; init; } = string.Empty;
 
-    [JsonPropertyName("type")]
-    public string? Type { get; set; }
+    public string? LatestDeploymentStatus { get; init; }
 
-    [JsonPropertyName("db_disk_threshold")]
-    public long? DbDiskThreshold { get; set; }
+    public bool HasConnectionVariables =>
+        !string.IsNullOrWhiteSpace(Host)
+        && Port > 0
+        && !string.IsNullOrWhiteSpace(UserName)
+        && !string.IsNullOrWhiteSpace(Password)
+        && !string.IsNullOrWhiteSpace(DatabaseName)
+        && !string.IsNullOrWhiteSpace(ConnectionString);
 
-    [JsonPropertyName("budget")]
-    public int? Budget { get; set; }
+    public RailwayPostgresDatabaseDetails WithDatabaseName(string databaseName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
 
-    [JsonPropertyName("eviction")]
-    public bool? Eviction { get; set; }
-
-    [JsonPropertyName("customer_id")]
-    public string? CustomerId { get; set; }
+        return new RailwayPostgresDatabaseDetails
+        {
+            ServiceId = ServiceId,
+            ServiceName = ServiceName,
+            ProjectId = ProjectId,
+            EnvironmentId = EnvironmentId,
+            Host = Host,
+            Port = Port,
+            UserName = UserName,
+            Password = Password,
+            DatabaseName = databaseName,
+            ConnectionString = RailwayPostgresConnectionString.Create(Host, Port, UserName, Password, databaseName),
+            LatestDeploymentStatus = LatestDeploymentStatus,
+        };
+    }
 }
