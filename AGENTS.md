@@ -111,26 +111,26 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ### Repository Overview
 - This repository contains the released `PinguApps.Aspire.Hosting.PostgreSQL.Railway` package.
-- The package lets an Aspire AppHost opt a normal `RedisResource` into Railway PostgreSQL during `aspire deploy`.
-- Consumer usage starts from standard Aspire Redis, such as `builder.AddRedis("cache")`, then adds `.PublishToRailway(...)`.
-- Local development should continue to behave like normal Aspire Redis. Railway behavior is deploy-only and opt-in.
+- The package lets an Aspire AppHost opt a normal `PostgresServerResource` into Railway PostgreSQL during `aspire deploy`.
+- Consumer usage starts from standard Aspire PostgreSQL, such as `builder.AddPostgres("postgres")`, then adds `.PublishToRailway(...)`.
+- Local development should continue to behave like normal Aspire PostgreSQL. Railway behavior is deploy-only and opt-in.
 
 ### Current Product Contract
 - This package is Railway PostgreSQL only.
-- Remote identity is the explicit Railway database name.
+- Remote identity is the explicit Railway PostgreSQL service name.
 - Supported ownership modes are `CreateOnly`, `ExistingOnly`, and `CreateOrAdopt`.
-- Management authentication uses Railway account email plus Management API key and is infrastructure-only.
-- Application-facing outputs expose Redis connection details, never the Railway Management API key.
-- Repeated deploys must target the same intended remote database and only reconcile settings the caller explicitly set.
-- Deployment must fail clearly on unsafe drift or unreconcilable explicit settings.
-- The package must not auto-delete remote Railway databases.
+- Management authentication uses a Railway API token and is infrastructure-only.
+- Application-facing outputs expose PostgreSQL connection details, never the Railway API token.
+- Repeated deploys must target the same intended remote service.
+- Child `AddDatabase(...)` resources are created inside the Railway PostgreSQL service during deploy.
+- The package must not auto-delete remote Railway services.
 
 ### Key Paths
 - `src/Aspire.Hosting.PostgreSQL.Railway/` contains the package source.
 - `src/Aspire.Hosting.PostgreSQL.Railway/Management/` contains the typed Railway management client layer.
-- `src/Aspire.Hosting.PostgreSQL.Railway/Deployment/` contains deploy-time resolution, ownership, create, reconcile, drift, and diagnostics logic.
-- `tests/Aspire.Hosting.PostgreSQL.Railway/` contains the full Reqnroll-based test suite.
-- `tests/Aspire.Hosting.PostgreSQL.Railway/README.md` explains the feature taxonomy and test support patterns.
+- `src/Aspire.Hosting.PostgreSQL.Railway/Deployment/` contains deploy-time ownership, create, database provisioning, and diagnostics logic.
+- `tests/Aspire.Hosting.PostgreSQL.Railway/` contains active xUnit contract tests plus disabled historical Reqnroll references.
+- `tests/Aspire.Hosting.PostgreSQL.Railway/README.md` explains the current test layout.
 - `samples/AppHostSnippets/RailwayPostgresAppHostSnippets.cs` is the compile-validated sample source used by docs tests.
 - `README.md` is the consumer-facing package guide and should stay aligned with shipped behavior.
 - `.diary/` contains branch-specific session state and must be maintained per the diary rules above.
@@ -138,15 +138,13 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ### Technical Baseline
 - Target framework: `.NET 10`.
 - Target Aspire version: `13.4.3`.
-- Keep Aspire's built-in `RedisResource` as the resource of record.
-- Preserve normal local Redis behavior unless the work is explicitly about deploy-time Railway behavior.
-- Keep app-facing Redis outputs separate from infrastructure-only management credentials.
-- TLS is required-on/read-only for v1.
-- Mutable provider settings are read regions, plan, budget, and eviction.
-- Database identity, platform, primary region, and TLS disabled state are create-time or fail-fast checks.
+- Keep Aspire's built-in `PostgresServerResource` as the resource of record.
+- Preserve normal local PostgreSQL behavior unless the work is explicitly about deploy-time Railway behavior.
+- Keep app-facing PostgreSQL outputs separate from infrastructure-only management credentials.
+- Railway PostgreSQL connection strings use SSL mode `Require`.
 
 ### Testing And Docs
-- Any behavior change must update or add Reqnroll coverage in `tests/Aspire.Hosting.PostgreSQL.Railway/`.
-- Do not introduce a second testing style for product behavior.
-- Live-provider scenarios must use `@live-railway`, skip cleanly without `RAILWAY_EMAIL` and `RAILWAY_API_KEY`, and leave the remote account unchanged after the run.
+- Any behavior change must update or add active coverage in `tests/Aspire.Hosting.PostgreSQL.Railway/`.
+- Historical Reqnroll files are currently disabled with `.feature.disabled`; do not re-enable them until they are ported to Railway PostgreSQL semantics.
+- Live-provider scenarios must skip cleanly without `RAILWAY_API_TOKEN`, `RAILWAY_PROJECT_ID`, and `RAILWAY_ENVIRONMENT_ID`, and leave the remote account unchanged after the run.
 - Keep `README.md`, `AGENTS.md`, samples, and tests in sync with the actual shipped behavior.

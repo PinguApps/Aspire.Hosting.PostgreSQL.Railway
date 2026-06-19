@@ -1,53 +1,18 @@
 # Deployment Behaviour
 
-`PublishToRailway` and `publishToRailway` are deploy-time integrations.
-
-## Deploy Flow
+`PublishToRailway` is a deploy-time integration. It does nothing during local AppHost model construction beyond attaching metadata and a deploy pipeline step.
 
 During `aspire deploy`, the package:
 
-1. Resolves AppHost parameters.
-2. Looks up the configured Railway database name.
+1. Resolves service name, project id, environment id, and API token.
+2. Looks up the Railway service by name.
 3. Applies the selected ownership mode.
-4. Creates the database when allowed and required.
-5. Validates immutable settings such as platform and primary region.
-6. Reconciles explicitly configured mutable settings.
-7. Retrieves final Redis connection details.
-8. Redirects the standard Aspire Redis connection output to Railway.
+4. Creates a Railway PostgreSQL service from Railway's PostgreSQL template when needed.
+5. Waits for Railway connection variables.
+6. Creates missing Aspire child databases inside the Railway PostgreSQL service.
+7. Populates PostgreSQL connection strings and supplementary outputs.
+8. Saves the remote Railway service identity for repeated deploys.
 
-## Deploy Step
+The deploy step is named `railway-postgres-<resource-name>`.
 
-The deploy pipeline adds a dedicated step for the Redis resource, named `railway-postgres-<resource-name>`.
-
-For a resource named `cache`, `aspire deploy --non-interactive --list-steps` should show an `railway-postgres-cache` step between deploy prerequisites and the final deploy step.
-
-## Repeated Deployments
-
-The configured database name is the stable remote identity. Repeated deployments target that name.
-
-The deployment pipeline can cache a provider database id, but it revalidates that cached identity against the configured name before reuse. This prevents stale state from silently adopting the wrong database.
-
-## Local Behaviour
-
-Local AppHost runs continue to behave like standard Aspire Redis. The package does not create, update, or delete Railway databases during local model construction.
-
-## Cloud Publishing
-
-When Redis is published to Railway, the Redis resource is excluded from cloud compute publishing. For Azure Container Apps, that means deployment should not create a fallback Redis container app for the `cache` resource.
-
-## Failure Behaviour
-
-Deployment fails clearly when:
-
-- required create settings are missing for a create path
-- a requested existing database cannot be found
-- a create-only deployment collides with an unrelated existing database
-- platform or primary region drift would be unsafe
-- `tls` is explicitly set to `false`
-- an explicit mutable setting cannot be reconciled
-
-The package does not auto-delete remote Railway databases.
-
-## Diagnostics
-
-Deployment diagnostics report progress through configuration resolution, lookup, drift validation, create, reconciliation, and output retrieval. Diagnostics redact management credentials, Redis passwords and tokens, and full Redis connection strings.
+The package does not delete Railway services. `CreateOnly`/`ExistingOnly` failures are intentional guardrails against accidentally adopting or replacing the wrong remote service.

@@ -155,8 +155,7 @@ public sealed class RailwayPostgresContractTests
             "project-id",
             "environment-id",
             ownershipMode,
-            new RailwayPostgresManagementCredentials("management-secret"),
-            RailwayPostgresProviderDeploymentOptions.Empty);
+            new RailwayPostgresManagementCredentials("management-secret"));
     }
 
     private static RailwayPostgresDatabaseDetails CreateServiceDetails(string databaseName = "railway")

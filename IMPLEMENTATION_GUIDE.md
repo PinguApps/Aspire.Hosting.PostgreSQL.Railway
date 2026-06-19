@@ -61,16 +61,16 @@
   - Verify remaining: rebuild the broader fake Railway harness or remove disabled historical feature files once equivalent Railway coverage exists.
   - Commit: tests.
 
-- [ ] Stage 6: Port TypeScript AppHost support.
+- [x] Stage 6: Port TypeScript AppHost support.
   - Preserve Aspire export attributes and generated guest-language module expectations.
   - Update TypeScript sample/fixture to call `publishToRailway`.
-  - Verify: TypeScript fixture tests and validation script pass.
+  - Verify: `aspire restore --non-interactive` and `npm run typecheck` pass in `samples/TypeScriptAppHost`.
   - Commit: TypeScript support.
 
-- [ ] Stage 7: Documentation and repository guidance.
+- [x] Stage 7: Documentation and repository guidance.
   - Update `README.md`, `docs/`, samples, `.env.example`, and `AGENTS.md`.
   - Document Railway credentials and expected Aspire parameter environment variables.
-  - Verify: docs samples compile and no Railway leftovers remain except historical references if intentionally kept.
+  - Verify: docs and active samples use Railway PostgreSQL service/project/environment/token terminology; stale Reqnroll features remain intentionally disabled as historical references.
   - Commit: docs.
 
 - [ ] Stage 8: Final verification.

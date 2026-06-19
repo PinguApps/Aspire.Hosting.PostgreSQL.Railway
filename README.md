@@ -1,30 +1,25 @@
 # PinguApps.Aspire.Hosting.PostgreSQL.Railway
 
-[![PinguApps.Aspire.Hosting.PostgreSQL.Railway version](https://img.shields.io/nuget/v/PinguApps.Aspire.Hosting.PostgreSQL.Railway?style=for-the-badge&label=PinguApps.Aspire.Hosting.PostgreSQL.Railway)](https://www.nuget.org/packages/PinguApps.Aspire.Hosting.PostgreSQL.Railway/) [![PinguApps.Aspire.Hosting.PostgreSQL.Railway downloads](https://img.shields.io/nuget/dt/PinguApps.Aspire.Hosting.PostgreSQL.Railway?style=for-the-badge&label=downloads)](https://www.nuget.org/packages/PinguApps.Aspire.Hosting.PostgreSQL.Railway/)
+`PinguApps.Aspire.Hosting.PostgreSQL.Railway` lets an Aspire AppHost keep using Aspire's normal PostgreSQL resource model locally, then create or adopt a Railway PostgreSQL service during `aspire deploy`.
 
-`PinguApps.Aspire.Hosting.PostgreSQL.Railway` lets an Aspire AppHost publish a normal Aspire Redis resource to Railway PostgreSQL during `aspire deploy`.
-
-- Package id: [`PinguApps.Aspire.Hosting.PostgreSQL.Railway`](https://www.nuget.org/packages/PinguApps.Aspire.Hosting.PostgreSQL.Railway/)
-- Distribution: NuGet for both C# and TypeScript AppHosts
-- Tested Aspire baseline: `13.4.3`
-- Provider scope: Railway PostgreSQL through the Railway Developer API
-- Local behaviour: standard Aspire Redis
-- Deploy behaviour: opt-in Railway create/adopt/reconcile flow
+- Local behaviour: standard Aspire PostgreSQL
+- Deploy behaviour: opt-in Railway PostgreSQL create/adopt flow
+- Resource of record: `PostgresServerResource`
+- Child databases: `postgres.AddDatabase(...)` resources are created inside the Railway PostgreSQL service during deploy
+- Required Railway inputs: service name, project id, environment id, API token
 
 ## Install
-
-C# AppHost:
 
 ```powershell
 dotnet add package PinguApps.Aspire.Hosting.PostgreSQL.Railway
 ```
 
-TypeScript AppHost:
+TypeScript AppHosts consume the same NuGet package through Aspire's generated module flow:
 
 ```json
 {
   "packages": {
-    "Aspire.Hosting.Redis": "13.4.3",
+    "Aspire.Hosting.PostgreSQL": "13.4.3",
     "PinguApps.Aspire.Hosting.PostgreSQL.Railway": "<package version>"
   }
 }
@@ -36,11 +31,7 @@ Then run:
 aspire restore --non-interactive
 ```
 
-No npm package is required for the integration itself. TypeScript AppHosts consume the same NuGet package through Aspire's generated guest-language module flow.
-
-## Minimal .NET Example
-
-Maintained sample source: [`samples/AppHostSnippets/RailwayPostgresAppHostSnippets.cs`](samples/AppHostSnippets/RailwayPostgresAppHostSnippets.cs)
+## C# Example
 
 ```csharp
 using Aspire.Hosting;
@@ -49,60 +40,48 @@ using Aspire.Hosting.PostgreSQL.Railway;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-IResourceBuilder<ParameterResource> databaseName = builder.AddParameter("railway-database-name");
-IResourceBuilder<ParameterResource> accountEmail = builder.AddParameter("railway-account-email");
-IResourceBuilder<ParameterResource> apiKey = builder.AddParameter("railway-api-key", secret: true);
+IResourceBuilder<ParameterResource> serviceName = builder.AddParameter("railway-postgres-service-name");
+IResourceBuilder<ParameterResource> projectId = builder.AddParameter("railway-project-id");
+IResourceBuilder<ParameterResource> environmentId = builder.AddParameter("railway-environment-id");
+IResourceBuilder<ParameterResource> apiToken = builder.AddParameter("railway-api-token", secret: true);
 
-IResourceBuilder<RedisResource> cache = builder.AddRedis("cache")
+IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgres")
     .PublishToRailway(
-        databaseName,
-        accountEmail,
-        apiKey,
-        RailwayPostgresOwnershipMode.CreateOrAdopt,
-        options =>
-        {
-            options.SetPlatform(RailwayPostgresCloudPlatform.Aws);
-            options.SetPrimaryRegion(RailwayPostgresRegion.AwsEuWest1);
-            options.SetPlan(RailwayPostgresPlan.PayAsYouGo);
-            options.Eviction = true;
-        });
+        serviceName,
+        projectId,
+        environmentId,
+        apiToken,
+        RailwayPostgresOwnershipMode.CreateOrAdopt);
+
+IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders");
 
 builder.AddProject<Projects.Api>("api")
-    .WithReference(cache);
+    .WithReference(orders);
 
 builder.Build().Run();
 ```
 
-## Minimal TypeScript AppHost Example
-
-Maintained demo source: [`samples/TypeScriptAppHost/apphost.mts`](samples/TypeScriptAppHost/apphost.mts)
+## TypeScript Example
 
 ```ts
-import {
-  createBuilder,
-  railwayPostgresCloudPlatform,
-  railwayPostgresOwnershipMode,
-  railwayPostgresPlan,
-  railwayPostgresRegion,
-} from "./.aspire/modules/aspire.mjs";
+import { createBuilder, railwayPostgresOwnershipMode } from "./.aspire/modules/aspire.mjs";
 
 const builder = await createBuilder();
 
-const databaseName = await builder.addParameter("railway-database-name");
-const accountEmail = await builder.addParameter("railway-account-email");
-const apiKey = await builder.addParameter("railway-api-key", { secret: true });
+const serviceName = await builder.addParameter("railway-postgres-service-name");
+const projectId = await builder.addParameter("railway-project-id");
+const environmentId = await builder.addParameter("railway-environment-id");
+const apiToken = await builder.addParameter("railway-api-token", { secret: true });
 
-let cache = await builder.addRedis("cache");
-cache = await cache.publishToRailway(databaseName, accountEmail, apiKey, {
+let postgres = await builder.addPostgres("postgres");
+postgres = await postgres.publishToRailway(serviceName, projectId, environmentId, apiToken, {
   ownershipMode: railwayPostgresOwnershipMode.createOrAdopt,
-  platform: railwayPostgresCloudPlatform.aws,
-  primaryRegion: railwayPostgresRegion.awsEuWest1,
-  plan: railwayPostgresPlan.payAsYouGo,
-  eviction: true,
 });
 
+const orders = await postgres.addDatabase("orders");
+
 let worker = await builder.addContainer("worker", "mcr.microsoft.com/dotnet/runtime-deps:10.0");
-worker = await worker.withReference(cache);
+worker = await worker.withReference(orders);
 
 const app = await builder.build();
 await app.run();
@@ -110,35 +89,34 @@ await app.run();
 
 ## Deploy Inputs
 
-| Input | Purpose |
-| --- | --- |
-| `railway-database-name` | Explicit remote Railway database name and stable deployment identity. |
-| `railway-account-email` | Infrastructure-only Railway account email. |
-| `railway-api-key` | Infrastructure-only Railway Management API key. Mark it secret. |
+| Aspire parameter | Secret | Purpose |
+| --- | --- | --- |
+| `railway-postgres-service-name` | No | Railway service name and stable remote identity. |
+| `railway-project-id` | No | Existing Railway project id. |
+| `railway-environment-id` | No | Existing Railway environment id. |
+| `railway-api-token` | Yes | Railway API token used only by deployment infrastructure. |
 
-The management API key is never exposed as an application-facing Redis output.
-
-For non-interactive deploys, provide real values as Aspire parameter environment variables:
+For non-interactive deploys:
 
 ```powershell
-$env:Parameters__railway_database_name = "railway-ts-test"
-$env:Parameters__railway_account_email = $env:RAILWAY_EMAIL
-$env:Parameters__railway_api_key = $env:RAILWAY_API_KEY
+$env:Parameters__railway_postgres_service_name = $env:RAILWAY_POSTGRES_SERVICE_NAME
+$env:Parameters__railway_project_id = $env:RAILWAY_PROJECT_ID
+$env:Parameters__railway_environment_id = $env:RAILWAY_ENVIRONMENT_ID
+$env:Parameters__railway_api_token = $env:RAILWAY_API_TOKEN
+aspire deploy --non-interactive
 ```
 
-## Behaviour Summary
+## Behaviour
 
-`builder.AddRedis("cache")` remains the resource of record. `PublishToRailway(...)` or `publishToRailway(...)` attaches deploy-time intent to that normal Redis resource.
-
-Local runs keep using standard Aspire Redis behaviour and do not call Railway while the AppHost model is built. During `aspire deploy`, the package resolves parameters, creates or adopts the named Railway database, reconciles explicitly configured mutable settings, fails on unsafe drift, and redirects app-facing Redis connection details to Railway.
+Local runs do not call Railway and keep normal Aspire PostgreSQL behaviour. During `aspire deploy`, this package creates or adopts the configured Railway PostgreSQL service, reads Railway's PostgreSQL variables, applies the server connection output, and applies child database connection strings for `AddDatabase(...)` resources.
 
 ## Docs
 
-- [Overview and product contract](https://github.com/PinguApps/Aspire.Hosting.PostgreSQL.Railway/blob/main/docs/overview.md)
-- [Install and package consumption](https://github.com/PinguApps/Aspire.Hosting.PostgreSQL.Railway/blob/main/docs/install.md)
-- [C# AppHost usage](https://github.com/PinguApps/Aspire.Hosting.PostgreSQL.Railway/blob/main/docs/getting-started-dotnet.md)
-- [TypeScript AppHost usage](https://github.com/PinguApps/Aspire.Hosting.PostgreSQL.Railway/blob/main/docs/getting-started-typescript.md)
-- [Configuration and ownership modes](https://github.com/PinguApps/Aspire.Hosting.PostgreSQL.Railway/blob/main/docs/configuration.md)
-- [Deployment behaviour](https://github.com/PinguApps/Aspire.Hosting.PostgreSQL.Railway/blob/main/docs/deployment-behaviour.md)
-- [Outputs and security boundaries](https://github.com/PinguApps/Aspire.Hosting.PostgreSQL.Railway/blob/main/docs/outputs-and-security.md)
-- [Samples and demos](https://github.com/PinguApps/Aspire.Hosting.PostgreSQL.Railway/blob/main/docs/samples-and-demos.md)
+- [Overview](docs/overview.md)
+- [Install](docs/install.md)
+- [C# AppHost usage](docs/getting-started-dotnet.md)
+- [TypeScript AppHost usage](docs/getting-started-typescript.md)
+- [Configuration](docs/configuration.md)
+- [Deployment behaviour](docs/deployment-behaviour.md)
+- [Outputs and security](docs/outputs-and-security.md)
+- [Samples](docs/samples-and-demos.md)

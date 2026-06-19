@@ -41,8 +41,7 @@ internal static class RailwayPostgresDeployTimeResolver
             projectId,
             environmentId,
             state.OwnershipMode,
-            new RailwayPostgresManagementCredentials(apiToken),
-            RailwayPostgresProviderDeploymentOptions.Empty);
+            new RailwayPostgresManagementCredentials(apiToken));
     }
 
     private static async Task<string> ResolveRequiredStringAsync(

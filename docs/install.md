@@ -6,66 +6,54 @@
 dotnet add package PinguApps.Aspire.Hosting.PostgreSQL.Railway
 ```
 
-Import the namespace in the AppHost:
-
 ```csharp
 using Aspire.Hosting.PostgreSQL.Railway;
 ```
 
 ## TypeScript AppHost
 
-TypeScript AppHosts also consume this integration through NuGet, but the package is added through `aspire.config.json`, not `dotnet add package`.
-
-For a released package:
+Add the hosting packages to `aspire.config.json`:
 
 ```json
 {
   "packages": {
-    "Aspire.Hosting.Redis": "13.4.3",
+    "Aspire.Hosting.PostgreSQL": "13.4.3",
     "PinguApps.Aspire.Hosting.PostgreSQL.Railway": "<package version>"
   }
 }
 ```
 
-When validating this repository checkout instead of the published package, point the package entry at the local project:
+For this repository checkout, use the local project path:
 
 ```json
 {
   "packages": {
-    "Aspire.Hosting.Redis": "13.4.3",
+    "Aspire.Hosting.PostgreSQL": "13.4.3",
     "PinguApps.Aspire.Hosting.PostgreSQL.Railway": "../../src/Aspire.Hosting.PostgreSQL.Railway/Aspire.Hosting.PostgreSQL.Railway.csproj"
   }
 }
 ```
 
-Then generate the TypeScript surface:
+Then run:
 
 ```powershell
 aspire restore --non-interactive
 ```
 
-Aspire loads the .NET hosting assembly, reads its export metadata, and generates the TypeScript module consumed by the AppHost. That is why the TypeScript examples import from `./.aspire/modules/aspire.mjs` after `aspire restore` rather than from an npm package owned by this repository.
-
-An npm package is not required for the integration itself. Adding one would create a second distribution surface for the same deploy-time behaviour.
-
-Use npm only for normal TypeScript tooling such as `typescript` or `tsx`.
-
 ## Required Parameters
-
-Every AppHost needs:
 
 | Parameter | Secret | Purpose |
 | --- | --- | --- |
-| `railway-database-name` | No | Remote Railway PostgreSQL database name and repeated-deploy identity. |
-| `railway-account-email` | No | Railway account email used by deployment infrastructure. |
-| `railway-api-key` | Yes | Railway Management API key used by deployment infrastructure. |
+| `railway-postgres-service-name` | No | Railway PostgreSQL service name. |
+| `railway-project-id` | No | Existing Railway project id. |
+| `railway-environment-id` | No | Existing Railway environment id. |
+| `railway-api-token` | Yes | Railway API token. |
 
-The account email and Management API key are deployment inputs. Application resources receive Redis connection details only.
-
-For non-interactive deploys, provide real values as Aspire parameter environment variables:
+Environment variable form for non-interactive deploy:
 
 ```powershell
-$env:Parameters__railway_database_name = "railway-ts-test"
-$env:Parameters__railway_account_email = $env:RAILWAY_EMAIL
-$env:Parameters__railway_api_key = $env:RAILWAY_API_KEY
+$env:Parameters__railway_postgres_service_name = $env:RAILWAY_POSTGRES_SERVICE_NAME
+$env:Parameters__railway_project_id = $env:RAILWAY_PROJECT_ID
+$env:Parameters__railway_environment_id = $env:RAILWAY_ENVIRONMENT_ID
+$env:Parameters__railway_api_token = $env:RAILWAY_API_TOKEN
 ```

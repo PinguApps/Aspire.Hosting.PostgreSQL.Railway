@@ -9,21 +9,18 @@ internal sealed class RailwayPostgresResolvedDeployment
         string projectId,
         string environmentId,
         RailwayPostgresOwnershipMode ownershipMode,
-        RailwayPostgresManagementCredentials managementCredentials,
-        RailwayPostgresProviderDeploymentOptions options)
+        RailwayPostgresManagementCredentials managementCredentials)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
         ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
         ArgumentNullException.ThrowIfNull(managementCredentials);
-        ArgumentNullException.ThrowIfNull(options);
 
         ServiceName = serviceName;
         ProjectId = projectId;
         EnvironmentId = environmentId;
         OwnershipMode = ownershipMode;
         ManagementCredentials = managementCredentials;
-        Options = options;
     }
 
     public string ServiceName { get; }
@@ -36,5 +33,4 @@ internal sealed class RailwayPostgresResolvedDeployment
 
     public RailwayPostgresManagementCredentials ManagementCredentials { get; }
 
-    public RailwayPostgresProviderDeploymentOptions Options { get; }
 }

@@ -18,7 +18,7 @@ public sealed class LiveRailwayScenarioHooks
     {
         Assert.SkipUnless(
             _context.LiveRailway.HasCredentials,
-            "Live Railway scenarios require RAILWAY_EMAIL and RAILWAY_API_KEY.");
+            "Live Railway scenarios require RAILWAY_API_TOKEN, RAILWAY_PROJECT_ID, and RAILWAY_ENVIRONMENT_ID.");
     }
 
     [AfterScenario("live-railway")]

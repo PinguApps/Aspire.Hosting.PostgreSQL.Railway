@@ -1,67 +1,34 @@
 # Outputs And Security
 
-There are two application-facing output paths.
-
-## Standard Redis Reference
-
-This is the recommended path:
+Application projects should normally consume PostgreSQL through Aspire references:
 
 ```csharp
 builder.AddProject<Projects.Api>("api")
-    .WithReference(cache);
+    .WithReference(orders);
 ```
 
-```ts
-worker = await worker.withReference(cache);
-```
+After deploy, the server and child database connection strings resolve to Railway PostgreSQL.
 
-After a successful deployment, the normal Redis connection output points at the Railway PostgreSQL database.
-
-## Supplementary Outputs
-
-C#:
+Supplementary Railway outputs are available on the server resource:
 
 ```csharp
-RailwayPostgresOutputs outputs = cache.Resource.GetRailwayPostgresOutputs();
+RailwayPostgresOutputs outputs = postgres.Resource.GetRailwayPostgresOutputs();
 ```
-
-TypeScript:
 
 ```ts
-const outputs = await cache.getRailwayPostgresOutputs();
-const endpoint = await outputs.endpoint();
-const port = await outputs.port();
+const outputs = await postgres.getRailwayPostgresOutputs();
+const host = await outputs.host();
 const password = await outputs.password();
-const tls = await outputs.tls();
-const databaseName = await outputs.databaseName();
 ```
-
-Supplementary outputs expose:
 
 | Output | Secret |
 | --- | --- |
-| Endpoint | No |
+| ServiceId | No |
+| Host | No |
 | Port | No |
+| UserName | No |
 | Password | Yes |
-| Tls | No |
 | DatabaseName | No |
+| ConnectionString | Yes |
 
-They do not expose the Railway Management API key, provider database id, customer id, REST tokens, billing metadata, or account-wide metadata.
-
-## Credential Boundary
-
-Infrastructure-only inputs:
-
-- Railway account email
-- Railway Management API key
-
-Application-facing values:
-
-- Redis connection string
-- endpoint
-- port
-- password
-- TLS flag
-- database name
-
-Keep `railway-api-key` as a secret parameter. Application projects should normally consume Redis through `WithReference(cache)`.
+The Railway API token is never exposed as an app-facing output or connection property.
