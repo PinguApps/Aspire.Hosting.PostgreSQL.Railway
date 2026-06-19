@@ -8,7 +8,7 @@
 - Local development should keep normal Aspire PostgreSQL behavior and must not call Railway.
 - Deploy behavior should be opt-in through a `PublishToRailway(...)` extension.
 - Ownership modes should match the Railway package shape: `CreateOnly`, `ExistingOnly`, `CreateOrAdopt`.
-- Railway deployment needs at least API token, project id, environment id, and PostgreSQL service name.
+- Railway deployment needs an existing project id, existing environment id, API token, and PostgreSQL service name.
 - Railway PostgreSQL exposes `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, and `DATABASE_URL`.
 
 ## External References Checked
@@ -78,7 +78,7 @@
 
 ## Open Questions
 
-- Should the integration deploy into an existing Railway project/environment only, or also create projects/environments when missing?
+- Decision for v1: deploy into an existing Railway project/environment only.
 - Should the Railway PostgreSQL service name be the stable remote identity, matching Railway database name semantics?
 - Should app-facing output use Railway internal references such as `${{Postgres.DATABASE_URL}}`, rendered variables, or direct connection strings resolved during deploy?
 - Should we expose only the standard Aspire PostgreSQL connection string, or also Railway's individual `PG*` outputs?
