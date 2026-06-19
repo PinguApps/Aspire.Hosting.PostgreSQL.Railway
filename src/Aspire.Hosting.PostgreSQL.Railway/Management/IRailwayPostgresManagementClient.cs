@@ -6,22 +6,34 @@ internal interface IRailwayPostgresManagementClient
         string projectId,
         string environmentId,
         string serviceName,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        return Task.FromException<RailwayPostgresDatabaseDetails?>(new NotSupportedException("The Railway PostgreSQL management client does not support service lookup by name."));
+    }
 
     public Task<RailwayPostgresDatabaseDetails> GetServiceAsync(
         string projectId,
         string environmentId,
         string serviceId,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        return Task.FromException<RailwayPostgresDatabaseDetails>(new NotSupportedException("The Railway PostgreSQL management client does not support service lookup by id."));
+    }
 
     public Task<RailwayPostgresDatabaseDetails> CreateServiceAsync(
         RailwayPostgresCreateServiceRequest request,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        return Task.FromException<RailwayPostgresDatabaseDetails>(new NotSupportedException("The Railway PostgreSQL management client does not support service creation."));
+    }
 
     public Task<RailwayPostgresDatabaseDetails> WaitUntilReadyAsync(
         string projectId,
         string environmentId,
         string serviceId,
         RailwayPostgresReadinessPollingOptions pollingOptions,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        return Task.FromException<RailwayPostgresDatabaseDetails>(new NotSupportedException("The Railway PostgreSQL management client does not support readiness polling."));
+    }
 }

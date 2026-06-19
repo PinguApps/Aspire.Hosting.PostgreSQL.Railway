@@ -8,18 +8,19 @@ internal static class AspireModelAssertions
 {
     public static void AssertStandardRedisResource(IResource resource)
     {
-        Assert.IsType<RedisResource>(resource);
+        Assert.IsType<PostgresServerResource>(resource);
     }
 
-    public static void AssertRedisConnectionProperties(RedisResource resource)
+    public static void AssertRedisConnectionProperties(PostgresServerResource resource)
     {
         IResourceWithConnectionString connectionResource = Assert.IsAssignableFrom<IResourceWithConnectionString>(resource);
         string[] propertyNames = [.. connectionResource.GetConnectionProperties().Select(property => property.Key)];
 
         Assert.Contains("Host", propertyNames);
         Assert.Contains("Port", propertyNames);
+        Assert.Contains("Username", propertyNames);
         Assert.Contains("Password", propertyNames);
-        Assert.Contains("Uri", propertyNames);
+        Assert.Contains("Database", propertyNames);
     }
 
     public static void AssertContainerHasEnvironmentCallback(ContainerResource resource)
@@ -29,7 +30,7 @@ internal static class AspireModelAssertions
             annotation => annotation is EnvironmentCallbackAnnotation);
     }
 
-    public static void AssertRedisConnectionPropertiesDoNotContain(RedisResource resource, string unexpectedValue)
+    public static void AssertRedisConnectionPropertiesDoNotContain(PostgresServerResource resource, string unexpectedValue)
     {
         IResourceWithConnectionString connectionResource = Assert.IsAssignableFrom<IResourceWithConnectionString>(resource);
 

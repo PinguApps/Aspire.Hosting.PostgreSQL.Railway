@@ -5,6 +5,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Steps\**\*.cs" />
+    <None Remove="Features\**\*.feature" />
+    <ReqnrollFeatureFiles Remove="Features\**\*.feature" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
     <ProjectReference Include="..\..\src\Aspire.Hosting.PostgreSQL.Railway\Aspire.Hosting.PostgreSQL.Railway.csproj" />
   </ItemGroup>

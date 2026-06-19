@@ -8,110 +8,78 @@ public static class RailwayPostgresAppHostSnippets
 {
     public static void ConfigureCreateOrAdopt(IDistributedApplicationBuilder builder)
     {
-        IResourceBuilder<ParameterResource> databaseName = builder.AddParameter("railway-database-name");
-        IResourceBuilder<ParameterResource> accountEmail = builder.AddParameter("railway-account-email");
-        IResourceBuilder<ParameterResource> apiKey = builder.AddParameter("railway-api-key", secret: true);
+        IResourceBuilder<ParameterResource> serviceName = builder.AddParameter("railway-postgres-service-name");
+        IResourceBuilder<ParameterResource> projectId = builder.AddParameter("railway-project-id");
+        IResourceBuilder<ParameterResource> environmentId = builder.AddParameter("railway-environment-id");
+        IResourceBuilder<ParameterResource> apiToken = builder.AddParameter("railway-api-token", secret: true);
 
-        IResourceBuilder<RedisResource> cache = builder.AddRedis("cache")
+        IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgres")
             .PublishToRailway(
-                databaseName,
-                accountEmail,
-                apiKey,
-                RailwayPostgresOwnershipMode.CreateOrAdopt,
-                options =>
-                {
-                    options.SetPlatform(RailwayPostgresCloudPlatform.Aws);
-                    options.SetPrimaryRegion(RailwayPostgresRegion.AwsEuWest1);
-                    options.SetPlan(RailwayPostgresPlan.PayAsYouGo);
-                    options.Eviction = true;
-                });
+                serviceName,
+                projectId,
+                environmentId,
+                apiToken,
+                RailwayPostgresOwnershipMode.CreateOrAdopt);
+
+        IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders");
 
         builder.AddProject<Projects.Api>("api")
-            .WithReference(cache);
+            .WithReference(orders);
     }
 
     public static void ConfigureCreateOnly(IDistributedApplicationBuilder builder)
     {
-        IResourceBuilder<ParameterResource> accountEmail = builder.AddParameter("railway-account-email");
-        IResourceBuilder<ParameterResource> apiKey = builder.AddParameter("railway-api-key", secret: true);
+        IResourceBuilder<ParameterResource> projectId = builder.AddParameter("railway-project-id");
+        IResourceBuilder<ParameterResource> environmentId = builder.AddParameter("railway-environment-id");
+        IResourceBuilder<ParameterResource> apiToken = builder.AddParameter("railway-api-token", secret: true);
 
-        builder.AddRedis("cache")
+        builder.AddPostgres("postgres")
             .PublishToRailway(
-                "orders-cache",
-                accountEmail,
-                apiKey,
-                RailwayPostgresOwnershipMode.CreateOnly,
-                options =>
-                {
-                    options.SetPlatform(RailwayPostgresCloudPlatform.Aws);
-                    options.SetPrimaryRegion(RailwayPostgresRegion.AwsEuWest1);
-                    options.SetReadRegions(RailwayPostgresRegion.AwsEuWest2);
-                    options.SetPlan(RailwayPostgresPlan.PayAsYouGo);
-                    options.SetBudget(360);
-                    options.Eviction = true;
-                });
+                "orders-postgres",
+                projectId,
+                environmentId,
+                apiToken,
+                RailwayPostgresOwnershipMode.CreateOnly);
     }
 
     public static void ConfigureExistingOnly(IDistributedApplicationBuilder builder)
     {
-        IResourceBuilder<ParameterResource> accountEmail = builder.AddParameter("railway-account-email");
-        IResourceBuilder<ParameterResource> apiKey = builder.AddParameter("railway-api-key", secret: true);
+        IResourceBuilder<ParameterResource> projectId = builder.AddParameter("railway-project-id");
+        IResourceBuilder<ParameterResource> environmentId = builder.AddParameter("railway-environment-id");
+        IResourceBuilder<ParameterResource> apiToken = builder.AddParameter("railway-api-token", secret: true);
 
-        builder.AddRedis("cache")
+        builder.AddPostgres("postgres")
             .PublishToRailway(
-                "orders-cache",
-                accountEmail,
-                apiKey,
+                "orders-postgres",
+                projectId,
+                environmentId,
+                apiToken,
                 RailwayPostgresOwnershipMode.ExistingOnly);
-    }
-
-    public static void ConfigureParameterizedOptions(IDistributedApplicationBuilder builder)
-    {
-        IResourceBuilder<ParameterResource> databaseName = builder.AddParameter("railway-database-name");
-        IResourceBuilder<ParameterResource> accountEmail = builder.AddParameter("railway-account-email");
-        IResourceBuilder<ParameterResource> apiKey = builder.AddParameter("railway-api-key", secret: true);
-        IResourceBuilder<ParameterResource> platform = builder.AddParameter("railway-platform");
-        IResourceBuilder<ParameterResource> primaryRegion = builder.AddParameter("railway-primary-region");
-        IResourceBuilder<ParameterResource> readRegion = builder.AddParameter("railway-read-region");
-        IResourceBuilder<ParameterResource> budget = builder.AddParameter("railway-budget");
-
-        builder.AddRedis("cache")
-            .PublishToRailway(
-                RailwayPostgresValue.FromParameter(databaseName),
-                accountEmail,
-                apiKey,
-                RailwayPostgresOwnershipMode.CreateOnly,
-                options =>
-                {
-                    options.Platform = RailwayPostgresValue.FromParameter(platform);
-                    options.PrimaryRegion = RailwayPostgresValue.FromParameter(primaryRegion);
-                    options.ReadRegions = [RailwayPostgresValue.FromParameter(readRegion)];
-                    options.Plan = "payg";
-                    options.Budget = RailwayPostgresValue.FromParameter(budget);
-                    options.Eviction = true;
-                });
     }
 
     public static void ConfigureSupplementaryOutputConsumer(IDistributedApplicationBuilder builder)
     {
-        IResourceBuilder<ParameterResource> databaseName = builder.AddParameter("railway-database-name");
-        IResourceBuilder<ParameterResource> accountEmail = builder.AddParameter("railway-account-email");
-        IResourceBuilder<ParameterResource> apiKey = builder.AddParameter("railway-api-key", secret: true);
+        IResourceBuilder<ParameterResource> serviceName = builder.AddParameter("railway-postgres-service-name");
+        IResourceBuilder<ParameterResource> projectId = builder.AddParameter("railway-project-id");
+        IResourceBuilder<ParameterResource> environmentId = builder.AddParameter("railway-environment-id");
+        IResourceBuilder<ParameterResource> apiToken = builder.AddParameter("railway-api-token", secret: true);
 
-        IResourceBuilder<RedisResource> cache = builder.AddRedis("cache")
+        IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgres")
             .PublishToRailway(
-                databaseName,
-                accountEmail,
-                apiKey,
+                serviceName,
+                projectId,
+                environmentId,
+                apiToken,
                 RailwayPostgresOwnershipMode.CreateOrAdopt);
 
-        RailwayPostgresOutputs outputs = cache.Resource.GetRailwayPostgresOutputs();
+        RailwayPostgresOutputs outputs = postgres.Resource.GetRailwayPostgresOutputs();
 
-        builder.AddContainer("redis-dashboard", "redis-dashboard")
-            .WithEnvironment("RAILWAY_POSTGRES_ENDPOINT", outputs.Endpoint)
+        builder.AddContainer("postgres-admin", "postgres-admin")
+            .WithEnvironment("RAILWAY_POSTGRES_SERVICE_ID", outputs.ServiceId)
+            .WithEnvironment("RAILWAY_POSTGRES_HOST", outputs.Host)
             .WithEnvironment("RAILWAY_POSTGRES_PORT", outputs.Port)
+            .WithEnvironment("RAILWAY_POSTGRES_USERNAME", outputs.UserName)
             .WithEnvironment("RAILWAY_POSTGRES_PASSWORD", outputs.Password)
-            .WithEnvironment("RAILWAY_POSTGRES_TLS", outputs.Tls)
             .WithEnvironment("RAILWAY_POSTGRES_DATABASE_NAME", outputs.DatabaseName);
     }
 }

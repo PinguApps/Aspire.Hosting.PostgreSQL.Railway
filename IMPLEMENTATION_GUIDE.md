@@ -41,7 +41,8 @@
   - Add typed GraphQL client using Railway Public API.
   - Support locating projects/environments/services, deploying the PostgreSQL template, reading variables, and failure mapping.
   - Keep Railway API token infrastructure-only.
-  - Verify: fake HTTP/client tests cover request shapes, auth, errors, and secret redaction.
+  - Progress: source GraphQL client is implemented; focused create-flow/contract tests pass.
+  - Verify remaining: fake HTTP/client tests cover request shapes, auth, errors, and secret redaction.
   - Commit: provider client.
 
 - [ ] Stage 4: Port deployment pipeline.
@@ -56,7 +57,8 @@
   - Rename features/steps/support from Railway PostgreSQL to Railway PostgreSQL.
   - Replace provider concepts with Railway project/environment/service/template concepts.
   - Preserve live-test pattern, skipping cleanly without `.env` credentials.
-  - Verify: full non-live test suite passes.
+  - Progress: stale Upstash/Redis Reqnroll features are preserved as `.feature.disabled`; a Railway-specific xUnit contract suite now covers the current server/resource contract.
+  - Verify remaining: rebuild the broader fake Railway harness or remove disabled historical feature files once equivalent Railway coverage exists.
   - Commit: tests.
 
 - [ ] Stage 6: Port TypeScript AppHost support.
@@ -82,4 +84,4 @@
 - Decision for v1: deploy into an existing Railway project/environment only.
 - Decision for v1: the Railway PostgreSQL service name is the stable remote identity, matching the Upstash database-name semantics.
 - Decision for v1: app-facing output uses resolved Railway variables from deploy time, not Railway reference expressions.
-- Should we expose only the standard Aspire PostgreSQL connection string, or also Railway's individual `PG*` outputs?
+- Decision for v1: expose the standard Aspire PostgreSQL connection string plus individual Railway PostgreSQL outputs: service id, host, port, user name, password, database name, and connection string.

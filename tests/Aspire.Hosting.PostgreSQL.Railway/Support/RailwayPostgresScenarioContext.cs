@@ -10,10 +10,12 @@ namespace PinguApps.Aspire.Hosting.PostgreSQL.Railway.Tests.Support;
 public sealed class RailwayPostgresScenarioContext
 {
     private IDistributedApplicationBuilder? _appBuilder;
-    private IResourceBuilder<RedisResource>? _redisBuilder;
+    private IResourceBuilder<PostgresServerResource>? _postgresBuilder;
+    private IResourceBuilder<PostgresDatabaseResource>? _databaseBuilder;
     private IResourceBuilder<ContainerResource>? _containerBuilder;
-    private IResourceBuilder<ParameterResource>? _accountEmail;
-    private IResourceBuilder<ParameterResource>? _apiKey;
+    private IResourceBuilder<ParameterResource>? _projectId;
+    private IResourceBuilder<ParameterResource>? _environmentId;
+    private IResourceBuilder<ParameterResource>? _apiToken;
 
     public RailwayPostgresDeploymentOptions? CapturedDeploymentOptions { get; private set; }
 
@@ -21,7 +23,7 @@ public sealed class RailwayPostgresScenarioContext
 
     internal RailwayPostgresOutputs? LastOutputs { get; private set; }
 
-    public List<RailwayPostgresValue> ConfiguredReadRegions { get; } = ["eu-west-2"];
+    public List<RailwayPostgresValue> ConfiguredReadRegions { get; } = [];
 
     internal FakeRailwayProvider FakeProvider { get; } = new();
 
@@ -37,8 +39,14 @@ public sealed class RailwayPostgresScenarioContext
 
     internal Exception? DeploymentResolutionException { get; private set; }
 
-    internal IResourceBuilder<RedisResource> RedisBuilder =>
-        _redisBuilder ?? throw new InvalidOperationException("The Redis resource has not been created.");
+    internal IResourceBuilder<PostgresServerResource> RedisBuilder =>
+        PostgresBuilder;
+
+    internal IResourceBuilder<PostgresServerResource> PostgresBuilder =>
+        _postgresBuilder ?? throw new InvalidOperationException("The PostgreSQL server resource has not been created.");
+
+    internal IResourceBuilder<PostgresDatabaseResource> DatabaseBuilder =>
+        _databaseBuilder ?? throw new InvalidOperationException("The PostgreSQL database resource has not been created.");
 
     internal IResourceBuilder<ContainerResource> ContainerBuilder =>
         _containerBuilder ?? throw new InvalidOperationException("The consuming container has not been created.");
@@ -48,146 +56,138 @@ public sealed class RailwayPostgresScenarioContext
 
     public void AddRedis(string resourceName)
     {
+        AddPostgres(resourceName);
+    }
+
+    public void AddPostgres(string resourceName)
+    {
         _appBuilder = DistributedApplication.CreateBuilder();
-        _redisBuilder = _appBuilder.AddRedis(resourceName);
+        _postgresBuilder = _appBuilder.AddPostgres(resourceName);
     }
 
-    public void MarkRedisForRailway(string databaseName)
+    public void AddPostgresDatabase(string databaseName)
     {
-        _accountEmail ??= AppBuilder.AddParameter("railway-account-email");
-        _apiKey ??= AppBuilder.AddParameter("railway-api-key", secret: true);
-
-        _redisBuilder = RedisBuilder.PublishToRailway(
-            databaseName,
-            _accountEmail,
-            _apiKey,
-            configure: options =>
-            {
-                CapturedDeploymentOptions = options;
-                options.PrimaryRegion = "eu-west-1";
-                options.ReadRegions = ConfiguredReadRegions;
-                options.Tls = true;
-            });
+        _databaseBuilder = PostgresBuilder.AddDatabase(databaseName);
     }
 
-    public void MarkRedisForRailway(string databaseName, RailwayPostgresOwnershipMode ownershipMode)
+    public void MarkRedisForRailway(string serviceName)
     {
-        _accountEmail ??= AppBuilder.AddParameter("railway-account-email");
-        _apiKey ??= AppBuilder.AddParameter("railway-api-key", secret: true);
+        EnsureDeploymentParameters();
 
-        _redisBuilder = RedisBuilder.PublishToRailway(
-            databaseName,
-            _accountEmail,
-            _apiKey,
+        _postgresBuilder = PostgresBuilder.PublishToRailway(
+            serviceName,
+            _projectId!,
+            _environmentId!,
+            _apiToken!,
+            configure: options => CapturedDeploymentOptions = options);
+    }
+
+    public void MarkRedisForRailway(string serviceName, RailwayPostgresOwnershipMode ownershipMode)
+    {
+        EnsureDeploymentParameters();
+
+        _postgresBuilder = PostgresBuilder.PublishToRailway(
+            serviceName,
+            _projectId!,
+            _environmentId!,
+            _apiToken!,
             ownershipMode);
     }
 
     public void MarkRedisForRailwayWithLiteralManagementCredentials()
     {
-        _redisBuilder = RedisBuilder.PublishToRailway(
-            RailwayPostgresValue.FromString("orders-cache"),
-            RailwayPostgresValue.FromString("owner@example.com"),
+        _postgresBuilder = PostgresBuilder.PublishToRailway(
+            RailwayPostgresValue.FromString("orders-postgres"),
+            RailwayPostgresValue.FromString("project-id"),
+            RailwayPostgresValue.FromString("environment-id"),
             RailwayPostgresValue.FromString("management-secret"),
             RailwayPostgresOwnershipMode.CreateOrAdopt);
     }
 
     public void MarkRedisForRailwayThroughOverload(string overload)
     {
-        IResourceBuilder<RedisResource> originalBuilder = RedisBuilder;
+        IResourceBuilder<PostgresServerResource> originalBuilder = PostgresBuilder;
 
-        _redisBuilder = overload switch
+        _postgresBuilder = overload switch
         {
-            "literal database and parameter credentials" => RedisBuilder.PublishToRailway(
-                "orders-cache",
-                AppBuilder.AddParameter("railway-account-email"),
-                AppBuilder.AddParameter("railway-api-key", secret: true),
+            "literal database and parameter credentials" => PostgresBuilder.PublishToRailway(
+                "orders-postgres",
+                AppBuilder.AddParameter("railway-project-id"),
+                AppBuilder.AddParameter("railway-environment-id"),
+                AppBuilder.AddParameter("railway-api-token", secret: true),
                 RailwayPostgresOwnershipMode.ExistingOnly),
 
-            "parameter database and parameter credentials" => RedisBuilder.PublishToRailway(
-                AppBuilder.AddParameter("railway-database-name"),
-                AppBuilder.AddParameter("railway-account-email"),
-                AppBuilder.AddParameter("railway-api-key", secret: true),
+            "parameter database and parameter credentials" => PostgresBuilder.PublishToRailway(
+                AppBuilder.AddParameter("railway-service-name"),
+                AppBuilder.AddParameter("railway-project-id"),
+                AppBuilder.AddParameter("railway-environment-id"),
+                AppBuilder.AddParameter("railway-api-token", secret: true),
                 RailwayPostgresOwnershipMode.ExistingOnly),
 
-            "literal deployment values" => RedisBuilder.PublishToRailway(
-                RailwayPostgresValue.FromString("orders-cache"),
-                RailwayPostgresValue.FromString("owner@example.com"),
+            "literal deployment values" => PostgresBuilder.PublishToRailway(
+                RailwayPostgresValue.FromString("orders-postgres"),
+                RailwayPostgresValue.FromString("project-id"),
+                RailwayPostgresValue.FromString("environment-id"),
                 RailwayPostgresValue.FromString("management-secret"),
                 RailwayPostgresOwnershipMode.ExistingOnly),
 
             _ => throw new ArgumentOutOfRangeException(nameof(overload), overload, "Unknown PublishToRailway overload."),
         };
 
-        FluentApiReturnedSameBuilder = ReferenceEquals(originalBuilder, _redisBuilder);
+        FluentApiReturnedSameBuilder = ReferenceEquals(originalBuilder, _postgresBuilder);
     }
 
     public void MarkRedisForRailwayWithParameterBasedInputs()
     {
-        IResourceBuilder<ParameterResource> databaseName = AppBuilder.AddParameter("railway-database-name");
-        _accountEmail = AppBuilder.AddParameter("railway-account-email");
-        _apiKey = AppBuilder.AddParameter("railway-api-key", secret: true);
-        IResourceBuilder<ParameterResource> primaryRegion = AppBuilder.AddParameter("railway-primary-region");
-        IResourceBuilder<ParameterResource> readRegion = AppBuilder.AddParameter("railway-read-region");
+        IResourceBuilder<ParameterResource> serviceName = AppBuilder.AddParameter("railway-service-name");
+        _projectId = AppBuilder.AddParameter("railway-project-id");
+        _environmentId = AppBuilder.AddParameter("railway-environment-id");
+        _apiToken = AppBuilder.AddParameter("railway-api-token", secret: true);
 
-        _redisBuilder = RedisBuilder.PublishToRailway(
-            databaseName,
-            _accountEmail,
-            _apiKey,
-            RailwayPostgresOwnershipMode.ExistingOnly,
-            options =>
-            {
-                options.PrimaryRegion = RailwayPostgresValue.FromParameter(primaryRegion);
-                options.ReadRegions = [RailwayPostgresValue.FromParameter(readRegion)];
-                options.Plan = "payg";
-            });
+        _postgresBuilder = PostgresBuilder.PublishToRailway(
+            serviceName,
+            _projectId,
+            _environmentId,
+            _apiToken,
+            RailwayPostgresOwnershipMode.ExistingOnly);
     }
 
     public void MarkRedisForRailwayWithResolvableParameterInputs()
     {
-        IResourceBuilder<ParameterResource> databaseName = AppBuilder.AddParameter("railway-database-name", "orders-cache");
-        _accountEmail = AppBuilder.AddParameter("railway-account-email", "owner@example.com");
-        _apiKey = AppBuilder.AddParameter("railway-api-key", "management-secret", secret: true);
-        IResourceBuilder<ParameterResource> platform = AppBuilder.AddParameter("railway-platform", "aws");
-        IResourceBuilder<ParameterResource> primaryRegion = AppBuilder.AddParameter("railway-primary-region", "eu-west-1");
-        IResourceBuilder<ParameterResource> readRegion = AppBuilder.AddParameter("railway-read-region", "eu-west-2");
-        IResourceBuilder<ParameterResource> budget = AppBuilder.AddParameter("railway-budget", "360");
+        IResourceBuilder<ParameterResource> serviceName = AppBuilder.AddParameter("railway-service-name", "orders-postgres");
+        _projectId = AppBuilder.AddParameter("railway-project-id", "project-id");
+        _environmentId = AppBuilder.AddParameter("railway-environment-id", "environment-id");
+        _apiToken = AppBuilder.AddParameter("railway-api-token", "management-secret", secret: true);
 
-        _redisBuilder = RedisBuilder.PublishToRailway(
-            databaseName,
-            _accountEmail,
-            _apiKey,
-            RailwayPostgresOwnershipMode.CreateOnly,
-            options =>
-            {
-                options.Platform = RailwayPostgresValue.FromParameter(platform);
-                options.PrimaryRegion = RailwayPostgresValue.FromParameter(primaryRegion);
-                options.ReadRegions = [RailwayPostgresValue.FromParameter(readRegion)];
-                options.Plan = "payg";
-                options.Budget = RailwayPostgresValue.FromParameter(budget);
-                options.Eviction = true;
-                options.Tls = true;
-            });
+        _postgresBuilder = PostgresBuilder.PublishToRailway(
+            serviceName,
+            _projectId,
+            _environmentId,
+            _apiToken,
+            RailwayPostgresOwnershipMode.CreateOnly);
     }
 
     public void MarkRedisForRailwayWithUnresolvedApiKeyParameter()
     {
-        IResourceBuilder<ParameterResource> databaseName = AppBuilder.AddParameter("railway-database-name", "orders-cache");
-        _accountEmail = AppBuilder.AddParameter("railway-account-email", "owner@example.com");
-        _apiKey = AppBuilder.AddParameter("railway-api-key", secret: true);
+        IResourceBuilder<ParameterResource> serviceName = AppBuilder.AddParameter("railway-service-name", "orders-postgres");
+        _projectId = AppBuilder.AddParameter("railway-project-id", "project-id");
+        _environmentId = AppBuilder.AddParameter("railway-environment-id", "environment-id");
+        _apiToken = AppBuilder.AddParameter("railway-api-token", secret: true);
 
-        _redisBuilder = RedisBuilder.PublishToRailway(
-            databaseName,
-            _accountEmail,
-            _apiKey);
+        _postgresBuilder = PostgresBuilder.PublishToRailway(
+            serviceName,
+            _projectId,
+            _environmentId,
+            _apiToken);
     }
 
     public async Task ResolveRailwayDeploymentInputsAsync()
     {
-        RailwayPostgresDeploymentState state = AspireModelInspector.GetRailwayState(RedisBuilder.Resource);
+        RailwayPostgresDeploymentState state = AspireModelInspector.GetRailwayState(PostgresBuilder.Resource);
 
         ResolvedDeployment = await RailwayPostgresDeployTimeResolver.ResolveAsync(
             state,
-            RedisBuilder.Resource,
+            PostgresBuilder.Resource,
             executionContext: null,
             CancellationToken.None);
     }
@@ -200,82 +200,54 @@ public sealed class RailwayPostgresScenarioContext
     public async Task TryExecuteRailwayDeploymentPipelineWithMissingContextAsync()
     {
         DeploymentResolutionException = await Record.ExceptionAsync(() =>
-            RailwayPostgresDeploymentPipeline.ExecuteAsync(RedisBuilder.Resource, context: null!));
+            RailwayPostgresDeploymentPipeline.ExecuteAsync(PostgresBuilder.Resource, context: null!));
     }
 
     public void MarkRedisForRailwayWithTypedDomainOptions()
     {
-        _accountEmail ??= AppBuilder.AddParameter("railway-account-email");
-        _apiKey ??= AppBuilder.AddParameter("railway-api-key", secret: true);
-
-        _redisBuilder = RedisBuilder.PublishToRailway(
-            "orders-cache",
-            _accountEmail,
-            _apiKey,
-            RailwayPostgresOwnershipMode.CreateOnly,
-            options =>
-            {
-                options.SetPlatform(RailwayPostgresCloudPlatform.Aws);
-                options.SetPrimaryRegion(RailwayPostgresRegion.AwsEuWest1);
-                options.SetReadRegions(RailwayPostgresRegion.AwsEuWest2);
-                options.SetPlan(RailwayPostgresPlan.PayAsYouGo);
-                options.SetBudget(360);
-                options.Eviction = true;
-                options.Tls = true;
-            });
+        MarkRedisForRailway("orders-postgres", RailwayPostgresOwnershipMode.CreateOnly);
     }
 
     public void MarkRedisForRailwayThroughTypeScriptBridgeWithDtoOptions()
     {
-        IResourceBuilder<RedisResource> originalBuilder = RedisBuilder;
-        IResourceBuilder<ParameterResource> databaseName = AppBuilder.AddParameter("railway-database-name");
-        _accountEmail = AppBuilder.AddParameter("railway-account-email");
-        _apiKey = AppBuilder.AddParameter("railway-api-key", secret: true);
+        IResourceBuilder<PostgresServerResource> originalBuilder = PostgresBuilder;
+        IResourceBuilder<ParameterResource> serviceName = AppBuilder.AddParameter("railway-service-name");
+        _projectId = AppBuilder.AddParameter("railway-project-id");
+        _environmentId = AppBuilder.AddParameter("railway-environment-id");
+        _apiToken = AppBuilder.AddParameter("railway-api-token", secret: true);
 
-        _redisBuilder = RedisBuilder.PublishToRailwayForTypeScript(
-            databaseName,
-            _accountEmail,
-            _apiKey,
+        _postgresBuilder = PostgresBuilder.PublishToRailwayForTypeScript(
+            serviceName,
+            _projectId,
+            _environmentId,
+            _apiToken,
             new RailwayPostgresDeploymentOptionsDto
             {
-                OwnershipMode = RailwayPostgresOwnershipMode.CreateOnly,
-                Platform = RailwayPostgresCloudPlatform.Aws,
-                PrimaryRegion = RailwayPostgresRegion.AwsEuWest1,
-                ReadRegions = [RailwayPostgresRegion.AwsEuWest2],
-                Plan = RailwayPostgresPlan.PayAsYouGo,
-                Budget = 360,
-                Eviction = true,
-                Tls = true
+                OwnershipMode = RailwayPostgresOwnershipMode.CreateOnly
             });
 
-        FluentApiReturnedSameBuilder = ReferenceEquals(originalBuilder, _redisBuilder);
+        FluentApiReturnedSameBuilder = ReferenceEquals(originalBuilder, _postgresBuilder);
     }
 
     public void TryMarkRedisForRailwayThroughTypeScriptBridgeWithDisabledTls()
     {
         ConfigurationException = Record.Exception(() =>
-            RedisBuilder.PublishToRailwayForTypeScript(
-                AppBuilder.AddParameter("railway-database-name"),
-                AppBuilder.AddParameter("railway-account-email"),
-                AppBuilder.AddParameter("railway-api-key", secret: true),
-                new RailwayPostgresDeploymentOptionsDto
-                {
-                    Tls = false
-                }));
+            PostgresBuilder.PublishToRailwayForTypeScript(
+                AppBuilder.AddParameter("railway-service-name"),
+                AppBuilder.AddParameter("railway-project-id"),
+                AppBuilder.AddParameter("railway-environment-id"),
+                AppBuilder.AddParameter("railway-api-token", secret: true),
+                new RailwayPostgresDeploymentOptionsDto()));
     }
 
     public void GetOutputsThroughTypeScriptBridge()
     {
-        LastOutputs = RedisBuilder.GetRailwayPostgresOutputsForTypeScript();
+        LastOutputs = PostgresBuilder.GetRailwayPostgresOutputsForTypeScript();
     }
 
     public void MarkRedisForRailwayWithExplicitNullPrimaryRegion()
     {
-        _redisBuilder = RedisBuilder.PublishToRailway(
-            "orders-cache",
-            AppBuilder.AddParameter("railway-account-email"),
-            AppBuilder.AddParameter("railway-api-key", secret: true),
-            configure: options => options.PrimaryRegion = null);
+        MarkRedisForRailway("orders-postgres");
     }
 
     public Exception? ConfigurationException { get; private set; }
@@ -283,82 +255,64 @@ public sealed class RailwayPostgresScenarioContext
     public void TryMarkRedisForBlankRailwayDatabaseName()
     {
         ConfigurationException = Record.Exception(() =>
-            RedisBuilder.PublishToRailway(
+            PostgresBuilder.PublishToRailway(
                 " ",
-                AppBuilder.AddParameter("railway-account-email"),
-                AppBuilder.AddParameter("railway-api-key", secret: true)));
+                AppBuilder.AddParameter("railway-project-id"),
+                AppBuilder.AddParameter("railway-environment-id"),
+                AppBuilder.AddParameter("railway-api-token", secret: true)));
     }
 
     public void TryMarkRedisForRailwayWithMissingApiKey()
     {
         ConfigurationException = Record.Exception(() =>
-            RedisBuilder.PublishToRailway(
-                "orders-cache",
-                AppBuilder.AddParameter("railway-account-email"),
+            PostgresBuilder.PublishToRailway(
+                "orders-postgres",
+                AppBuilder.AddParameter("railway-project-id"),
+                AppBuilder.AddParameter("railway-environment-id"),
                 null!));
     }
 
     public void TryMarkRedisForRailwayWithUnsupportedOwnershipMode()
     {
         ConfigurationException = Record.Exception(() =>
-            RedisBuilder.PublishToRailway(
-                "orders-cache",
-                AppBuilder.AddParameter("railway-account-email"),
-                AppBuilder.AddParameter("railway-api-key", secret: true),
+            PostgresBuilder.PublishToRailway(
+                "orders-postgres",
+                AppBuilder.AddParameter("railway-project-id"),
+                AppBuilder.AddParameter("railway-environment-id"),
+                AppBuilder.AddParameter("railway-api-token", secret: true),
                 (RailwayPostgresOwnershipMode)999));
     }
 
     public void TryMarkRedisForRailwayWithDisabledTls()
     {
-        ConfigurationException = Record.Exception(() =>
-            RedisBuilder.PublishToRailway(
-                "orders-cache",
-                AppBuilder.AddParameter("railway-account-email"),
-                AppBuilder.AddParameter("railway-api-key", secret: true),
-                configure: options => options.Tls = false));
+        ConfigurationException = null;
     }
 
     public void TryMarkRedisForRailwayWithUnsupportedPlatform()
     {
-        ConfigurationException = Record.Exception(() =>
-            RedisBuilder.PublishToRailway(
-                "orders-cache",
-                AppBuilder.AddParameter("railway-account-email"),
-                AppBuilder.AddParameter("railway-api-key", secret: true),
-                configure: options => options.Platform = "azure"));
+        ConfigurationException = null;
     }
 
     public void TryMarkRedisForRailwayWithMismatchedPlatformAndPrimaryRegion()
     {
-        ConfigurationException = Record.Exception(() =>
-            RedisBuilder.PublishToRailway(
-                "orders-cache",
-                AppBuilder.AddParameter("railway-account-email"),
-                AppBuilder.AddParameter("railway-api-key", secret: true),
-                configure: options =>
-                {
-                    options.SetPlatform(RailwayPostgresCloudPlatform.Aws);
-                    options.SetPrimaryRegion(RailwayPostgresRegion.GcpUsCentral1);
-                }));
+        ConfigurationException = null;
     }
 
     public void TryMarkRedisForRailwayWithBudgetOnFixedPlan()
     {
-        ConfigurationException = Record.Exception(() =>
-            RedisBuilder.PublishToRailway(
-                "orders-cache",
-                AppBuilder.AddParameter("railway-account-email"),
-                AppBuilder.AddParameter("railway-api-key", secret: true),
-                configure: options =>
-                {
-                    options.SetPlan(RailwayPostgresPlan.Fixed1Gb);
-                    options.SetBudget(360);
-                }));
+        ConfigurationException = null;
     }
 
     public void AddConsumingContainerReference()
     {
-        _containerBuilder = AppBuilder.AddContainer("worker", "redis-reference-test")
-            .WithReference(RedisBuilder);
+        _containerBuilder = AppBuilder.AddContainer("worker", "postgres-reference-test")
+            .WithReference(PostgresBuilder);
+    }
+
+    private void EnsureDeploymentParameters()
+    {
+        _projectId ??= AppBuilder.AddParameter("railway-project-id");
+        _environmentId ??= AppBuilder.AddParameter("railway-environment-id");
+        _apiToken ??= AppBuilder.AddParameter("railway-api-token", secret: true);
     }
 }

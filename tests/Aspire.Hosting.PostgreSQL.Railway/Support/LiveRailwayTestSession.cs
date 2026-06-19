@@ -12,14 +12,19 @@ internal sealed class LiveRailwayTestSession : IDisposable
     private readonly Stack<Func<Task>> _cleanupActions = [];
     private readonly HttpClient _managementHttpClient = new()
     {
-        BaseAddress = new Uri("https://api.railway.com/v2/"),
+        BaseAddress = new Uri("https://backboard.railway.com/graphql/v2"),
     };
 
-    public string? AccountEmail => Environment.GetEnvironmentVariable("RAILWAY_EMAIL");
+    public string? ProjectId => Environment.GetEnvironmentVariable("RAILWAY_PROJECT_ID");
 
-    public string? ApiKey => Environment.GetEnvironmentVariable("RAILWAY_API_KEY");
+    public string? EnvironmentId => Environment.GetEnvironmentVariable("RAILWAY_ENVIRONMENT_ID");
 
-    public bool HasCredentials => !string.IsNullOrWhiteSpace(AccountEmail) && !string.IsNullOrWhiteSpace(ApiKey);
+    public string? ApiToken => Environment.GetEnvironmentVariable("RAILWAY_API_TOKEN");
+
+    public bool HasCredentials =>
+        !string.IsNullOrWhiteSpace(ProjectId)
+        && !string.IsNullOrWhiteSpace(EnvironmentId)
+        && !string.IsNullOrWhiteSpace(ApiToken);
 
     public int CleanupActionCount => _cleanupActions.Count;
 
@@ -100,32 +105,11 @@ internal sealed class LiveRailwayTestSession : IDisposable
     private RailwayPostgresManagementCredentials CreateCredentials()
     {
         return new RailwayPostgresManagementCredentials(
-            AccountEmail ?? throw new InvalidOperationException("RAILWAY_EMAIL is not configured."),
-            ApiKey ?? throw new InvalidOperationException("RAILWAY_API_KEY is not configured."));
+            ApiToken ?? throw new InvalidOperationException("RAILWAY_API_TOKEN is not configured."));
     }
 
-    private async Task DeleteDatabaseByNameAsync(string databaseName)
+    private Task DeleteDatabaseByNameAsync(string databaseName)
     {
-        RailwayPostgresManagementClient client = CreateManagementClient();
-
-        RailwayPostgresDatabaseDetails? database = await client
-            .FindDatabaseByNameAsync(databaseName, CancellationToken.None)
-            .ConfigureAwait(false);
-
-        if (database is null)
-        {
-            return;
-        }
-
-        using HttpRequestMessage request = new(
-            HttpMethod.Delete,
-            $"redis/database/{Uri.EscapeDataString(database.DatabaseId)}");
-        request.Headers.Authorization = CreateCredentials().CreateAuthorizationHeader();
-
-        using HttpResponseMessage response = await _managementHttpClient
-            .SendAsync(request, CancellationToken.None)
-            .ConfigureAwait(false);
-
-        response.EnsureSuccessStatusCode();
+        throw new NotSupportedException($"Live cleanup for Railway PostgreSQL service '{databaseName}' is not implemented yet.");
     }
 }

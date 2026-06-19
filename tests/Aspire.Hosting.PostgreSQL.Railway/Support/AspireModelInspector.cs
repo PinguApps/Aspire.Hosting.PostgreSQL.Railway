@@ -14,23 +14,23 @@ internal static class AspireModelInspector
         return resource.IsExcludedFromPublish();
     }
 
-    public static RailwayPostgresDeploymentAnnotation GetRailwayAnnotation(RedisResource resource)
+    public static RailwayPostgresDeploymentAnnotation GetRailwayAnnotation(PostgresServerResource resource)
     {
         return Assert.Single(resource.Annotations.OfType<RailwayPostgresDeploymentAnnotation>());
     }
 
-    public static RailwayPostgresDeploymentState GetRailwayState(RedisResource resource)
+    public static RailwayPostgresDeploymentState GetRailwayState(PostgresServerResource resource)
     {
         return resource.GetRailwayPostgresDeploymentState()
-            ?? throw new InvalidOperationException("The Redis resource does not have Railway deployment state.");
+            ?? throw new InvalidOperationException("The PostgreSQL resource does not have Railway deployment state.");
     }
 
-    public static bool HasRailwayState(RedisResource resource)
+    public static bool HasRailwayState(PostgresServerResource resource)
     {
         return resource.GetRailwayPostgresDeploymentState() is not null;
     }
 
-    public static int GetPipelineStepCount(RedisResource resource)
+    public static int GetPipelineStepCount(PostgresServerResource resource)
     {
         return resource.Annotations.OfType<PipelineStepAnnotation>().Count();
     }
