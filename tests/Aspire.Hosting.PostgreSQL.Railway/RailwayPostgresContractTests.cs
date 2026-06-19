@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Pipelines;
@@ -6,6 +7,7 @@ using Aspire.Hosting.PostgreSQL.Railway;
 using Aspire.Hosting.PostgreSQL.Railway.Deployment;
 using Aspire.Hosting.PostgreSQL.Railway.Management;
 using Npgsql;
+using PinguApps.Aspire.Hosting.PostgreSQL.Railway.Tests.Support;
 using Xunit;
 
 namespace PinguApps.Aspire.Hosting.PostgreSQL.Railway.Tests;
@@ -125,6 +127,95 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("environment-id", client.CreatedRequest?.EnvironmentId);
         Assert.Equal("svc_123", client.WaitedServiceId);
         Assert.Equal("orders-postgres", result.Database.ServiceName);
+    }
+
+    [Fact]
+    public async Task ManagementClient_CreatesRailwayPostgresFromOfficialTemplate()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "template": {
+                  "serializedConfig": {
+                    "services": {
+                      "template-service": {
+                        "name": "Postgres",
+                        "source": { "image": "ghcr.io/railwayapp-templates/postgres-ssl:18" },
+                        "variables": {
+                          "PGHOST": { "defaultValue": "${{RAILWAY_PRIVATE_DOMAIN}}" },
+                          "PGPORT": { "defaultValue": "5432" },
+                          "PGUSER": { "defaultValue": "${{POSTGRES_USER}}" },
+                          "PGPASSWORD": { "defaultValue": "${{POSTGRES_PASSWORD}}" },
+                          "PGDATABASE": { "defaultValue": "${{POSTGRES_DB}}" },
+                          "DATABASE_URL": { "defaultValue": "postgresql://${{PGUSER}}:${{POSTGRES_PASSWORD}}@${{RAILWAY_PRIVATE_DOMAIN}}:5432/${{PGDATABASE}}" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "templateDeployV2": { "projectId": "project-id", "workflowId": "workflow-id" } } }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "project": {
+                  "services": {
+                    "edges": [
+                      { "node": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null } }
+                    ]
+                  }
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "status": "SUCCESS" } },
+                "variables": {
+                  "PGHOST": "postgres.railway.internal",
+                  "PGPORT": "5432",
+                  "PGUSER": "postgres",
+                  "PGPASSWORD": "postgres-password",
+                  "PGDATABASE": "railway",
+                  "DATABASE_URL": "Host=postgres.railway.internal;Port=5432;Username=postgres;Password=postgres-password;Database=railway;SSL Mode=Require"
+                }
+              }
+            }
+            """);
+
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        RailwayPostgresDatabaseDetails service = await client.CreateServiceAsync(
+            new RailwayPostgresCreateServiceRequest("orders-postgres", "project-id", "environment-id"),
+            CancellationToken.None);
+
+        Assert.Equal("svc_123", service.ServiceId);
+        Assert.Equal("orders-postgres", service.ServiceName);
+        Assert.Equal("Bearer", handler.Requests[0].AuthorizationScheme);
+        Assert.Equal("management-secret", handler.Requests[0].AuthorizationParameter);
+        Assert.Contains("GetRailwayPostgresTemplate", handler.Requests[0].Content, StringComparison.Ordinal);
+        Assert.Contains("templateDeployV2", handler.Requests[1].Content, StringComparison.Ordinal);
+
+        using JsonDocument deployRequest = JsonDocument.Parse(handler.Requests[1].Content!);
+        JsonElement input = deployRequest.RootElement
+            .GetProperty("variables")
+            .GetProperty("input");
+        Assert.Equal("project-id", input.GetProperty("projectId").GetString());
+        Assert.Equal("environment-id", input.GetProperty("environmentId").GetString());
+        Assert.Equal("b55da7dc-09be-4140-bc65-1284d15d349c", input.GetProperty("templateId").GetString());
+
+        JsonElement services = input.GetProperty("serializedConfig").GetProperty("services");
+        JsonElement serviceConfig = Assert.Single(services.EnumerateObject()).Value;
+        Assert.Equal("orders-postgres", serviceConfig.GetProperty("name").GetString());
     }
 
     [Fact]

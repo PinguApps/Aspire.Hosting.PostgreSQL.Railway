@@ -41,8 +41,8 @@
   - Add typed GraphQL client using Railway Public API.
   - Support locating projects/environments/services, deploying the PostgreSQL template, reading variables, and failure mapping.
   - Keep Railway API token infrastructure-only.
-  - Progress: source GraphQL client is implemented; focused create-flow/contract tests pass.
-  - Verify remaining: fake HTTP/client tests cover request shapes, auth, errors, and secret redaction.
+  - Progress: source GraphQL client is implemented; PostgreSQL template deployment now uses `templateDeployV2` with the official template `serializedConfig` and a configured service-name override.
+  - Verify remaining: broaden fake HTTP/client tests around provider errors and secret redaction.
   - Commit: provider client.
 
 - [ ] Stage 4: Port deployment pipeline.
@@ -76,7 +76,8 @@
 - [ ] Stage 8: Final verification.
   - Run format/build/tests.
   - If Railway credentials are available in `.env`, run live deployment tests.
-  - Record any live-test blocker explicitly.
+  - Progress: live diagnostics confirmed the token can create services; direct `serviceCreate` with template fields is rejected by Railway, so the client was changed to `templateDeployV2`.
+  - Record any remaining live-test blocker explicitly.
   - Commit: final verification fixes if needed.
 
 ## Open Questions

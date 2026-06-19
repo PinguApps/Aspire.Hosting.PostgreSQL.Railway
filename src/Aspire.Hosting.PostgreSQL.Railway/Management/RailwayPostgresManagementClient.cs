@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace Aspire.Hosting.PostgreSQL.Railway.Management;
@@ -9,7 +10,8 @@ namespace Aspire.Hosting.PostgreSQL.Railway.Management;
 internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManagementClient
 {
     private const string PostgresTemplateId = "b55da7dc-09be-4140-bc65-1284d15d349c";
-    private const string PostgresTemplateServiceId = "b55da7dc-09be-4140-bc65-1284b15d349b";
+    private static readonly TimeSpan _createdServiceLookupTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan _createdServiceLookupDelay = TimeSpan.FromSeconds(2);
 
     private const string ListServicesQuery = """
         query ListRailwayServices($projectId: String!) {
@@ -45,12 +47,19 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         }
         """;
 
-    private const string CreateServiceMutation = """
-        mutation CreateRailwayPostgresService($input: ServiceCreateInput!) {
-          serviceCreate(input: $input) {
-            id
-            name
+    private const string GetTemplateQuery = """
+        query GetRailwayPostgresTemplate($id: String!) {
+          template(id: $id) {
+            serializedConfig
+          }
+        }
+        """;
+
+    private const string DeployTemplateMutation = """
+        mutation DeployRailwayPostgresTemplate($input: TemplateDeployV2Input!) {
+          templateDeployV2(input: $input) {
             projectId
+            workflowId
           }
         }
         """;
@@ -167,28 +176,28 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        CreateServiceData data = await SendAsync<CreateServiceData>(
-            CreateServiceMutation,
+        GetTemplateData templateData = await SendAsync<GetTemplateData>(
+            GetTemplateQuery,
+            new { id = PostgresTemplateId },
+            cancellationToken).ConfigureAwait(false);
+
+        JsonNode serializedConfig = CreateSerializedConfig(templateData.Template.SerializedConfig, request.ServiceName);
+
+        await SendAsync<DeployTemplateData>(
+            DeployTemplateMutation,
             new
             {
                 input = new
                 {
-                    name = request.ServiceName,
                     projectId = request.ProjectId,
                     environmentId = request.EnvironmentId,
                     templateId = PostgresTemplateId,
-                    templateServiceId = PostgresTemplateServiceId,
+                    serializedConfig,
                 }
             },
             cancellationToken).ConfigureAwait(false);
 
-        RailwayServiceNode service = data.ServiceCreate;
-
-        return await GetServiceAsync(
-            request.ProjectId,
-            request.EnvironmentId,
-            service.Id,
-            cancellationToken).ConfigureAwait(false);
+        return await WaitForCreatedServiceAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<RailwayPostgresDatabaseDetails> WaitUntilReadyAsync(
@@ -278,6 +287,37 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             : deserialized.Data;
     }
 
+    private async Task<RailwayPostgresDatabaseDetails> WaitForCreatedServiceAsync(
+        RailwayPostgresCreateServiceRequest request,
+        CancellationToken cancellationToken)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+
+        while (true)
+        {
+            RailwayPostgresDatabaseDetails? service = await FindServiceByNameAsync(
+                request.ProjectId,
+                request.EnvironmentId,
+                request.ServiceName,
+                cancellationToken).ConfigureAwait(false);
+
+            if (service is not null)
+            {
+                return service;
+            }
+
+            if (stopwatch.Elapsed >= _createdServiceLookupTimeout)
+            {
+                throw new RailwayPostgresProviderException(
+                    RailwayPostgresProviderFailureKind.ProviderContract,
+                    statusCode: null,
+                    $"Railway PostgreSQL service '{request.ServiceName}' was not visible after the template deployment completed.");
+            }
+
+            await Task.Delay(_createdServiceLookupDelay, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     private async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         try
@@ -332,6 +372,43 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     private string RedactSecrets(string value)
     {
         return value.Replace(_credentials.ApiToken, "[redacted]", StringComparison.Ordinal);
+    }
+
+    private static JsonNode CreateSerializedConfig(JsonElement serializedConfig, string serviceName)
+    {
+        if (serializedConfig.ValueKind != JsonValueKind.Object)
+        {
+            throw new RailwayPostgresProviderException(
+                RailwayPostgresProviderFailureKind.ProviderContract,
+                statusCode: null,
+                "Railway returned the PostgreSQL template configuration in an unexpected shape.");
+        }
+
+        JsonNode config = JsonNode.Parse(serializedConfig.GetRawText())
+            ?? throw new RailwayPostgresProviderException(
+                RailwayPostgresProviderFailureKind.ProviderContract,
+                statusCode: null,
+                "Railway returned an empty PostgreSQL template configuration.");
+
+        JsonObject? services = config["services"]?.AsObject();
+
+        if (services is null || services.Count == 0)
+        {
+            throw new RailwayPostgresProviderException(
+                RailwayPostgresProviderFailureKind.ProviderContract,
+                statusCode: null,
+                "Railway PostgreSQL template configuration did not contain any services.");
+        }
+
+        foreach (KeyValuePair<string, JsonNode?> service in services)
+        {
+            if (service.Value is JsonObject serviceConfig)
+            {
+                serviceConfig["name"] = serviceName;
+            }
+        }
+
+        return config;
     }
 
     private static IReadOnlyDictionary<string, string> ParseVariables(JsonElement variables)
@@ -411,6 +488,28 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         public RailwayProject Project { get; set; } = new();
     }
 
+    private sealed class GetTemplateData
+    {
+        public RailwayTemplate Template { get; set; } = new();
+    }
+
+    private sealed class RailwayTemplate
+    {
+        public JsonElement SerializedConfig { get; set; }
+    }
+
+    private sealed class DeployTemplateData
+    {
+        public RailwayTemplateDeployPayload TemplateDeployV2 { get; set; } = new();
+    }
+
+    private sealed class RailwayTemplateDeployPayload
+    {
+        public string ProjectId { get; set; } = string.Empty;
+
+        public string? WorkflowId { get; set; }
+    }
+
     private sealed class RailwayProject
     {
         public RailwayServiceConnection Services { get; set; } = new();
@@ -433,11 +532,6 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         public RailwayServiceInstance? ServiceInstance { get; set; }
 
         public JsonElement Variables { get; set; }
-    }
-
-    private sealed class CreateServiceData
-    {
-        public RailwayServiceNode ServiceCreate { get; set; } = new();
     }
 
     private sealed class RailwayServiceNode
