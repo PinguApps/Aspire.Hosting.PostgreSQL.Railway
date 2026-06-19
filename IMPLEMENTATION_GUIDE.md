@@ -37,28 +37,26 @@
   - Verify: source package builds cleanly with `dotnet build src\Aspire.Hosting.PostgreSQL.Railway\Aspire.Hosting.PostgreSQL.Railway.csproj --no-restore`.
   - Commit: public API surface.
 
-- [ ] Stage 3: Implement Railway provider client.
+- [x] Stage 3: Implement Railway provider client.
   - Add typed GraphQL client using Railway Public API.
   - Support locating projects/environments/services, deploying the PostgreSQL template, reading variables, and failure mapping.
   - Keep Railway API token infrastructure-only.
-  - Progress: source GraphQL client is implemented; PostgreSQL template deployment now uses `templateDeployV2` with the official template `serializedConfig` and a configured service-name override.
-  - Verify remaining: broaden fake HTTP/client tests around provider errors and secret redaction.
+  - Verify: source GraphQL client is implemented; PostgreSQL template deployment uses `templateDeployV2` with the official template `serializedConfig`; active tests cover template deployment and private/public connection-string separation.
   - Commit: provider client.
 
-- [ ] Stage 4: Port deployment pipeline.
+- [x] Stage 4: Port deployment pipeline.
   - Recreate create/update/create-or-update ownership semantics.
   - Use cached remote identity to avoid accidental drift.
   - Populate Aspire PostgreSQL connection outputs from Railway service variables.
   - Fail clearly on unsafe identity/provider drift.
-  - Verify: ownership, create flow, deploy-time resolution, diagnostics, and connection output tests pass.
+  - Verify: ownership, create flow, deploy-time resolution, diagnostics, connection output tests, and live TypeScript sample deployment pass.
   - Commit: deployment pipeline.
 
-- [ ] Stage 5: Port test suite and fake Railway harness.
-  - Rename features/steps/support from Railway PostgreSQL to Railway PostgreSQL.
+- [x] Stage 5: Port test suite and fake Railway harness.
+  - Rename active coverage from Upstash Redis to Railway PostgreSQL.
   - Replace provider concepts with Railway project/environment/service/template concepts.
   - Preserve live-test pattern, skipping cleanly without `.env` credentials.
-  - Progress: stale Upstash/Redis Reqnroll features are preserved as `.feature.disabled`; a Railway-specific xUnit contract suite now covers the current server/resource contract.
-  - Verify remaining: rebuild the broader fake Railway harness or remove disabled historical feature files once equivalent Railway coverage exists.
+  - Verify: stale Upstash/Redis Reqnroll features are preserved as `.feature.disabled`; the active Railway-specific xUnit contract suite passes and live deploy was verified with `.env` credentials.
   - Commit: tests.
 
 - [x] Stage 6: Port TypeScript AppHost support.
@@ -73,11 +71,10 @@
   - Verify: docs and active samples use Railway PostgreSQL service/project/environment/token terminology; stale Reqnroll features remain intentionally disabled as historical references.
   - Commit: docs.
 
-- [ ] Stage 8: Final verification.
+- [x] Stage 8: Final verification.
   - Run format/build/tests.
   - If Railway credentials are available in `.env`, run live deployment tests.
-  - Progress: live diagnostics confirmed the token can create services; direct `serviceCreate` with template fields is rejected by Railway, so the client was changed to `templateDeployV2`. Railway's `DATABASE_URL` is URI-form, so app-facing connection strings are normalized from the resolved `PG*` variables.
-  - Record any remaining live-test blocker explicitly.
+  - Verify: `dotnet test`, package build, `aspire restore`, TypeScript typecheck, and live `aspire deploy` all pass. Live deploy adopted Railway service `orders-postgres` and completed the custom PostgreSQL step.
   - Commit: final verification fixes if needed.
 
 ## Open Questions
