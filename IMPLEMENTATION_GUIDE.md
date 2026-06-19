@@ -10,6 +10,7 @@
 - Ownership modes should match the Railway package shape: `CreateOnly`, `ExistingOnly`, `CreateOrAdopt`.
 - Railway deployment needs an existing project id, existing environment id, API token, and PostgreSQL service name.
 - Railway PostgreSQL exposes `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, and `DATABASE_URL`.
+- Public contract choice: publish the `PostgresServerResource`; child `AddDatabase(...)` resources should be created inside the Railway PostgreSQL service during deploy.
 
 ## External References Checked
 
@@ -79,6 +80,6 @@
 ## Open Questions
 
 - Decision for v1: deploy into an existing Railway project/environment only.
-- Should the Railway PostgreSQL service name be the stable remote identity, matching Railway database name semantics?
-- Should app-facing output use Railway internal references such as `${{Postgres.DATABASE_URL}}`, rendered variables, or direct connection strings resolved during deploy?
+- Decision for v1: the Railway PostgreSQL service name is the stable remote identity, matching the Upstash database-name semantics.
+- Decision for v1: app-facing output uses resolved Railway variables from deploy time, not Railway reference expressions.
 - Should we expose only the standard Aspire PostgreSQL connection string, or also Railway's individual `PG*` outputs?
