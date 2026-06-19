@@ -200,6 +200,7 @@ public sealed class RailwayPostgresContractTests
 
         Assert.Equal("svc_123", service.ServiceId);
         Assert.Equal("orders-postgres", service.ServiceName);
+        Assert.Equal("railway", new NpgsqlConnectionStringBuilder(service.ConnectionString).Database);
         Assert.Equal("Bearer", handler.Requests[0].AuthorizationScheme);
         Assert.Equal("management-secret", handler.Requests[0].AuthorizationParameter);
         Assert.Contains("GetRailwayPostgresTemplate", handler.Requests[0].Content, StringComparison.Ordinal);

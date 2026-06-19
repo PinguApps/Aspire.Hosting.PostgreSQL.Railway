@@ -153,6 +153,11 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
         IReadOnlyDictionary<string, string> variables = ParseVariables(data.Variables);
         string? status = data.ServiceInstance?.LatestDeployment?.Status;
+        string host = GetVariableOrEmpty(variables, "PGHOST");
+        int port = ParsePort(GetVariableOrEmpty(variables, "PGPORT"), service.Id);
+        string userName = GetVariableOrEmpty(variables, "PGUSER");
+        string password = GetVariableOrEmpty(variables, "PGPASSWORD");
+        string databaseName = GetVariableOrEmpty(variables, "PGDATABASE");
 
         return new RailwayPostgresDatabaseDetails
         {
@@ -160,12 +165,12 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             ServiceName = service.Name,
             ProjectId = projectId,
             EnvironmentId = environmentId,
-            Host = GetVariableOrEmpty(variables, "PGHOST"),
-            Port = ParsePort(GetVariableOrEmpty(variables, "PGPORT"), service.Id),
-            UserName = GetVariableOrEmpty(variables, "PGUSER"),
-            Password = GetVariableOrEmpty(variables, "PGPASSWORD"),
-            DatabaseName = GetVariableOrEmpty(variables, "PGDATABASE"),
-            ConnectionString = GetVariableOrEmpty(variables, "DATABASE_URL"),
+            Host = host,
+            Port = port,
+            UserName = userName,
+            Password = password,
+            DatabaseName = databaseName,
+            ConnectionString = RailwayPostgresConnectionString.Create(host, port, userName, password, databaseName),
             LatestDeploymentStatus = status,
         };
     }
@@ -276,7 +281,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             throw new RailwayPostgresProviderException(
                 RailwayPostgresProviderFailureKind.Unexpected,
                 response.StatusCode,
-                $"Railway GraphQL request failed: {RedactSecrets(string.Join("; ", deserialized.Errors.Select(error => error.Message)))}");
+                $"Railway GraphQL request '{GetOperationName(query)}' failed: {RedactSecrets(string.Join("; ", deserialized.Errors.Select(error => error.Message)))}");
         }
 
         return deserialized.Data is null
@@ -372,6 +377,31 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     private string RedactSecrets(string value)
     {
         return value.Replace(_credentials.ApiToken, "[redacted]", StringComparison.Ordinal);
+    }
+
+    private static string GetOperationName(string query)
+    {
+        ReadOnlySpan<char> span = query.AsSpan().TrimStart();
+
+        foreach (string keyword in new[] { "query", "mutation" })
+        {
+            if (!span.StartsWith(keyword, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            span = span[keyword.Length..].TrimStart();
+            int end = 0;
+
+            while (end < span.Length && (char.IsLetterOrDigit(span[end]) || span[end] == '_'))
+            {
+                end++;
+            }
+
+            return end > 0 ? span[..end].ToString() : keyword;
+        }
+
+        return "anonymous";
     }
 
     private static JsonNode CreateSerializedConfig(JsonElement serializedConfig, string serviceName)

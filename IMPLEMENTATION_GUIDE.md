@@ -76,7 +76,7 @@
 - [ ] Stage 8: Final verification.
   - Run format/build/tests.
   - If Railway credentials are available in `.env`, run live deployment tests.
-  - Progress: live diagnostics confirmed the token can create services; direct `serviceCreate` with template fields is rejected by Railway, so the client was changed to `templateDeployV2`.
+  - Progress: live diagnostics confirmed the token can create services; direct `serviceCreate` with template fields is rejected by Railway, so the client was changed to `templateDeployV2`. Railway's `DATABASE_URL` is URI-form, so app-facing connection strings are normalized from the resolved `PG*` variables.
   - Record any remaining live-test blocker explicitly.
   - Commit: final verification fixes if needed.
 
