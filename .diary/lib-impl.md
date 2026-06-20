@@ -1,8 +1,8 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: provider/deploy pipeline complete; C# `.WithReference(postgres/database)` now routes Railway-published resources through output-backed connection references for Azure App Service.
+- Current plan: provider/deploy pipeline complete; Railway environment inputs now accept either UUIDs or exact names such as `production`.
 - Open questions/risks: User still needs to rerun `aspire deploy` manually in the verification app; no deploy command was run for that app.
-- Next actions: verify manual Azure App Service deploy; optionally inspect/clean the live `orders-postgres` Railway service when no longer needed.
+- Next actions: rerun manual app deploy with `RAILWAY_ENVIRONMENT_ID=production`; optionally inspect/clean the live `orders-postgres` Railway service when no longer needed.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
 ## Session log
@@ -16,3 +16,8 @@
   - Why: Azure App Service processes `ConnectionStringReference.Resource.ConnectionStringExpression` directly, so default `PostgresDatabaseResource` references tried to resolve external Railway `postgres` as Azure App Service context.
   - Change: added Railway-aware C# `WithReference` overloads and output-backed connection resources for Railway-published Postgres server/database resources; updated tests/docs/samples (files: `RailwayPostgresReferenceBuilderExtensions.cs`, `RailwayPostgresReferenceConnectionOutput.cs`, `RailwayPostgresContractTests.cs`, `README.md`)
   - Notes: `dotnet test` passes; manual app deploy intentionally not run.
+### 2026-06-20 03:36 +01:00 (pingu/lib-impl)
+- Resolve Railway environment names [infra] (impact: med)
+  - Why: Railway UI does not expose environment UUIDs readily; users naturally provide names like `production`.
+  - Change: added deploy-time `environments(projectId)` lookup, UUID passthrough, pipeline normalization, docs, and tests (files: `RailwayPostgresManagementClient.cs`, `RailwayPostgresDeploymentPipeline.cs`, `RailwayPostgresContractTests.cs`, `README.md` | cmds: `dotnet test`)
+  - Notes: committed `f14e7ec`; manual verification app updated separately.
