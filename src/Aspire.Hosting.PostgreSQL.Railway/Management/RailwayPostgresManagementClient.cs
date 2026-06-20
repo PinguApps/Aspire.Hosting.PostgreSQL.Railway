@@ -43,6 +43,16 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         }
         """;
 
+    private const string ListRegionsQuery = """
+        query ListRailwayRegions {
+          regions {
+            id
+            name
+            region
+          }
+        }
+        """;
+
     private const string GetServiceQuery = """
         query GetRailwayPostgresService($projectId: String!, $environmentId: String!, $serviceId: String!) {
           service(id: $serviceId) {
@@ -340,6 +350,10 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
         if (options.HasServiceInstanceSettings)
         {
+            string? regionId = string.IsNullOrWhiteSpace(options.Region)
+                ? null
+                : await ResolveRegionIdAsync(options.Region, cancellationToken).ConfigureAwait(false);
+
             await SendAsync<UpdateServiceInstanceData>(
                 UpdateServiceInstanceMutation,
                 new
@@ -348,8 +362,8 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                     serviceId,
                     input = new
                     {
-                        region = EmptyToNull(options.Region),
-                        multiRegionConfig = CreateMultiRegionConfigOrNull(options.Region),
+                        region = regionId,
+                        multiRegionConfig = CreateMultiRegionConfigOrNull(regionId),
                         restartPolicyType = options.RestartPolicy is null
                             ? null
                             : ToRailwayRestartPolicy(options.RestartPolicy.Value),
@@ -629,11 +643,6 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         return variables.TryGetValue(name, out string? value) ? value : string.Empty;
     }
 
-    private static string? EmptyToNull(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? null : value;
-    }
-
     private static IReadOnlyDictionary<string, object>? CreateMultiRegionConfigOrNull(string? region)
     {
         if (string.IsNullOrWhiteSpace(region))
@@ -648,6 +657,58 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                 numReplicas = 1,
             },
         };
+    }
+
+    private async Task<string> ResolveRegionIdAsync(string region, CancellationToken cancellationToken)
+    {
+        ListRegionsData data = await SendAsync<ListRegionsData>(
+            ListRegionsQuery,
+            new { },
+            cancellationToken).ConfigureAwait(false);
+
+        List<string> matchingNames =
+        [
+            .. data.Regions
+                .Where(candidate => string.Equals(candidate.Name, region, StringComparison.OrdinalIgnoreCase))
+                .Select(candidate => candidate.Id)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+        ];
+
+        if (matchingNames.Count == 1)
+        {
+            return matchingNames[0];
+        }
+
+        List<string> matchingIds =
+        [
+            .. data.Regions
+                .Where(candidate => string.Equals(candidate.Id, region, StringComparison.OrdinalIgnoreCase))
+                .Select(candidate => candidate.Id)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+        ];
+
+        if (matchingIds.Count == 1)
+        {
+            return matchingIds[0];
+        }
+
+        List<string> matchingLabels =
+        [
+            .. data.Regions
+                .Where(candidate => string.Equals(candidate.Region, region, StringComparison.OrdinalIgnoreCase))
+                .Select(candidate => candidate.Id)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+        ];
+
+        if (matchingLabels.Count == 1)
+        {
+            return matchingLabels[0];
+        }
+
+        throw new RailwayPostgresProviderException(
+            RailwayPostgresProviderFailureKind.Validation,
+            statusCode: null,
+            $"Railway region '{region}' was not found or was ambiguous.");
     }
 
     private static string ToRailwayRestartPolicy(RailwayPostgresRestartPolicy restartPolicy)
@@ -761,6 +822,20 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     private sealed class ListEnvironmentsData
     {
         public RailwayEnvironmentConnection Environments { get; set; } = new();
+    }
+
+    private sealed class ListRegionsData
+    {
+        public IReadOnlyList<RailwayRegionNode> Regions { get; set; } = [];
+    }
+
+    private sealed class RailwayRegionNode
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+
+        public string Region { get; set; } = string.Empty;
     }
 
     private sealed class GetTemplateData

@@ -273,6 +273,16 @@ public sealed class RailwayPostgresContractTests
     {
         FakeHttpMessageHandler handler = new();
         handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "regions": [
+                  { "id": "ams", "name": "europe-west4-drams3a", "region": "Amsterdam" },
+                  { "id": "sfo", "name": "us-west2", "region": "California" }
+                ]
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
             { "data": { "serviceInstanceUpdate": true } }
             """);
         handler.Enqueue(System.Net.HttpStatusCode.OK, """
@@ -300,32 +310,33 @@ public sealed class RailwayPostgresContractTests
             },
             CancellationToken.None);
 
-        Assert.Equal(3, handler.Requests.Count);
+        Assert.Equal(4, handler.Requests.Count);
+        Assert.Contains("ListRailwayRegions", handler.Requests[0].Content, StringComparison.Ordinal);
 
-        using JsonDocument serviceRequest = JsonDocument.Parse(handler.Requests[0].Content!);
+        using JsonDocument serviceRequest = JsonDocument.Parse(handler.Requests[1].Content!);
         JsonElement serviceVariables = serviceRequest.RootElement.GetProperty("variables");
         Assert.Equal("environment-id", serviceVariables.GetProperty("environmentId").GetString());
         Assert.Equal("svc_123", serviceVariables.GetProperty("serviceId").GetString());
         JsonElement serviceInput = serviceVariables.GetProperty("input");
-        Assert.Equal(RailwayPostgresRegions.EuWestMetal, serviceInput.GetProperty("region").GetString());
+        Assert.Equal("ams", serviceInput.GetProperty("region").GetString());
         Assert.Equal(
             1,
             serviceInput
                 .GetProperty("multiRegionConfig")
-                .GetProperty(RailwayPostgresRegions.EuWestMetal)
+                .GetProperty("ams")
                 .GetProperty("numReplicas")
                 .GetInt32());
         Assert.Equal("ON_FAILURE", serviceInput.GetProperty("restartPolicyType").GetString());
         Assert.Equal(7, serviceInput.GetProperty("restartPolicyMaxRetries").GetInt32());
 
-        using JsonDocument limitsRequest = JsonDocument.Parse(handler.Requests[1].Content!);
+        using JsonDocument limitsRequest = JsonDocument.Parse(handler.Requests[2].Content!);
         JsonElement limitsInput = limitsRequest.RootElement.GetProperty("variables").GetProperty("input");
         Assert.Equal("environment-id", limitsInput.GetProperty("environmentId").GetString());
         Assert.Equal("svc_123", limitsInput.GetProperty("serviceId").GetString());
         Assert.Equal(2, limitsInput.GetProperty("memoryGB").GetDouble());
         Assert.Equal(1.5, limitsInput.GetProperty("vCPUs").GetDouble());
 
-        using JsonDocument variableRequest = JsonDocument.Parse(handler.Requests[2].Content!);
+        using JsonDocument variableRequest = JsonDocument.Parse(handler.Requests[3].Content!);
         JsonElement variableInput = variableRequest.RootElement.GetProperty("variables").GetProperty("input");
         Assert.Equal("project-id", variableInput.GetProperty("projectId").GetString());
         Assert.Equal("environment-id", variableInput.GetProperty("environmentId").GetString());
