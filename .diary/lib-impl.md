@@ -1,8 +1,8 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: provider/deploy pipeline complete; Railway environment inputs now accept either UUIDs or exact names such as `production`.
-- Open questions/risks: User still needs to rerun `aspire deploy` manually in the verification app; no deploy command was run for that app.
-- Next actions: rerun manual app deploy with `RAILWAY_ENVIRONMENT_ID=production`; optionally inspect/clean the live `orders-postgres` Railway service when no longer needed.
+- Current plan: provider/deploy pipeline now resolves Railway environment names and waits for Railway PostgreSQL variables before emitting outputs.
+- Open questions/risks: User still needs to rerun `aspire deploy` manually in the verification app; no deploy command was run by the agent.
+- Next actions: rerun manual app deploy; confirm Azure web app is created; open deployed `/postgres`; optionally inspect/clean the live `orders-postgres` Railway service when no longer needed.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
 ## Session log
@@ -21,3 +21,8 @@
   - Why: Railway UI does not expose environment UUIDs readily; users naturally provide names like `production`.
   - Change: added deploy-time `environments(projectId)` lookup, UUID passthrough, pipeline normalization, docs, and tests (files: `RailwayPostgresManagementClient.cs`, `RailwayPostgresDeploymentPipeline.cs`, `RailwayPostgresContractTests.cs`, `README.md` | cmds: `dotnet test`)
   - Notes: committed `f14e7ec`; manual verification app updated separately.
+### 2026-06-20 11:14 +01:00 (pingu/lib-impl)
+- Wait for Railway PostgreSQL variables [infra] (impact: high)
+  - Why: Railway template deploy can expose the service before `PGHOST`/connection variables exist; package threw on empty host before readiness polling.
+  - Change: allow incomplete service details with empty connection strings, so `WaitUntilReadyAsync` polls until variables are populated; added regression coverage (files: `RailwayPostgresManagementClient.cs`, `RailwayPostgresContractTests.cs` | cmds: `dotnet test`, manual app `dotnet build`, manual app `dotnet test`)
+  - Notes: committed `df94328`; Azure web app was absent because website provisioning failed after Railway outputs were missing.
