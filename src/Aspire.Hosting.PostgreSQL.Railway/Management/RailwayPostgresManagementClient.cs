@@ -349,6 +349,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                     input = new
                     {
                         region = EmptyToNull(options.Region),
+                        multiRegionConfig = CreateMultiRegionConfigOrNull(options.Region),
                         restartPolicyType = options.RestartPolicy is null
                             ? null
                             : ToRailwayRestartPolicy(options.RestartPolicy.Value),
@@ -631,6 +632,22 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     private static string? EmptyToNull(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static IReadOnlyDictionary<string, object>? CreateMultiRegionConfigOrNull(string? region)
+    {
+        if (string.IsNullOrWhiteSpace(region))
+        {
+            return null;
+        }
+
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            [region] = new
+            {
+                numReplicas = 1,
+            },
+        };
     }
 
     private static string ToRailwayRestartPolicy(RailwayPostgresRestartPolicy restartPolicy)

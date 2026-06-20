@@ -308,6 +308,13 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("svc_123", serviceVariables.GetProperty("serviceId").GetString());
         JsonElement serviceInput = serviceVariables.GetProperty("input");
         Assert.Equal(RailwayPostgresRegions.EuWestMetal, serviceInput.GetProperty("region").GetString());
+        Assert.Equal(
+            1,
+            serviceInput
+                .GetProperty("multiRegionConfig")
+                .GetProperty(RailwayPostgresRegions.EuWestMetal)
+                .GetProperty("numReplicas")
+                .GetInt32());
         Assert.Equal("ON_FAILURE", serviceInput.GetProperty("restartPolicyType").GetString());
         Assert.Equal(7, serviceInput.GetProperty("restartPolicyMaxRetries").GetInt32());
 
