@@ -41,10 +41,10 @@ builder.Build().Run();
 Run deploys from the AppHost directory:
 
 ```powershell
-$env:Parameters__railway_postgres_service_name = "orders-postgres"
-$env:Parameters__railway_project_id = $env:RAILWAY_PROJECT_ID
-$env:Parameters__railway_environment_id = $env:RAILWAY_ENVIRONMENT_ID
-$env:Parameters__railway_api_token = $env:RAILWAY_API_TOKEN
+Set-Item Env:Parameters__railway-postgres-service-name "orders-postgres"
+Set-Item Env:Parameters__railway-project-id $env:RAILWAY_PROJECT_ID
+Set-Item Env:Parameters__railway-environment-id $env:RAILWAY_ENVIRONMENT_ID
+Set-Item Env:Parameters__railway-api-token $env:RAILWAY_API_TOKEN
 aspire deploy --non-interactive
 ```
 
