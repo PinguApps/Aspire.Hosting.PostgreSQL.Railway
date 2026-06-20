@@ -59,7 +59,19 @@ public sealed class RailwayPostgresOutputReference : IExpressionValue, IValuePro
     [AspireExportIgnore(Reason = "Reference values are resolved by Aspire.")]
     public ValueTask<string?> GetValueAsync(ValueProviderContext context, CancellationToken cancellationToken)
     {
-        return GetValueAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (_value is not null)
+        {
+            return ValueTask.FromResult<string?>(_value);
+        }
+
+        if (context.ExecutionContext?.Operation == DistributedApplicationOperation.Run)
+        {
+            return ValueTask.FromResult<string?>(string.Empty);
+        }
+
+        throw new InvalidOperationException("The Railway PostgreSQL output has not been populated by the deployment pipeline.");
     }
 
     internal void SetValue(string value)

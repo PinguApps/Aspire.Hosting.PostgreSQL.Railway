@@ -172,6 +172,34 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task RailwayOutputReferences_DoNotFailLocalRunBeforeDeployOutputsArePopulated()
+    {
+        IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
+        IResourceBuilder<PostgresServerResource> postgres = app.AddPostgres("postgres")
+            .PublishToRailway(
+                "orders-postgres",
+                app.AddParameter("railway-project-id"),
+                app.AddParameter("railway-environment-id"),
+                app.AddParameter("railway-api-token", secret: true));
+        RailwayPostgresOutputReference host = postgres.Resource.GetRailwayPostgresOutputs().Host;
+        ValueProviderContext runContext = new()
+        {
+            ExecutionContext = new DistributedApplicationExecutionContext(DistributedApplicationOperation.Run),
+        };
+        ValueProviderContext publishContext = new()
+        {
+            ExecutionContext = new DistributedApplicationExecutionContext(DistributedApplicationOperation.Publish),
+        };
+
+        string? localValue = await host.GetValueAsync(runContext, CancellationToken.None);
+        InvalidOperationException publishException = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await host.GetValueAsync(publishContext, CancellationToken.None));
+
+        Assert.Equal(string.Empty, localValue);
+        Assert.Contains("deployment pipeline", publishException.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RailwayReferenceConnectionOutput_EscapesConnectionStringValues()
     {
         IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
