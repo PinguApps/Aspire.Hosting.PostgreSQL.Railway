@@ -140,7 +140,7 @@ If `railway-environment-id` is not a UUID, the deployment step resolves it by li
 | `RestartPolicyMaxRetries` | Maximum Railway restart attempts. |
 | `MemoryGB` | Railway memory limit in GB. |
 | `VCpus` | Railway vCPU limit. |
-| `SharedMemoryBytes` | Sets Railway service variable `RAILWAY_SHM_SIZE_BYTES` for PostgreSQL shared memory. |
+| `SharedMemoryBytes` | Sets Railway service variable `RAILWAY_SHM_SIZE_BYTES` for container shared memory. This is not volume storage. |
 
 When `Region` changes, the deploy step updates Railway's service instance config and redeploys the PostgreSQL service if the latest deployment manifest is not already in that region.
 

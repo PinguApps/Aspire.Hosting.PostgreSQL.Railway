@@ -50,7 +50,7 @@ postgres.PublishToRailway(
 | `RestartPolicyMaxRetries` | Service restart retry limit. |
 | `MemoryGB` | Service instance memory limit in GB. |
 | `VCpus` | Service instance vCPU limit. |
-| `SharedMemoryBytes` | Service variable `RAILWAY_SHM_SIZE_BYTES`. |
+| `SharedMemoryBytes` | Service variable `RAILWAY_SHM_SIZE_BYTES` for container shared memory. This is not volume storage. |
 
 When `Region` changes, the deploy step updates Railway's service instance config and redeploys the PostgreSQL service if the latest deployment manifest is not already in that region.
 

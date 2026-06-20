@@ -56,3 +56,8 @@
   - Why: string `Region` allowed invalid user input and made supported values less discoverable.
   - Change: converted `RailwayPostgresRegions` from string constants to enum, mapped enum values to Railway identifiers internally, and updated TypeScript samples/docs (files: `RailwayPostgresRegions.cs`, `RailwayPostgresDeploymentOptions.cs`, `RailwayPostgresDeploymentOptionsDto.cs`, `README.md`, `docs/*`, `samples/TypeScriptAppHost/apphost.mts`)
   - Notes: C# usage shape stays `options.Region = RailwayPostgresRegions.EuWestMetal`; TypeScript generated `RailwayPostgresRegions` enum.
+### 2026-06-20 15:25 +01:00 (pingu/lib-impl)
+- Clarify Railway shared memory option [docs] (impact: low)
+  - Why: `SharedMemoryBytes` could be confused with Railway volume storage.
+  - Change: documented that it sets `RAILWAY_SHM_SIZE_BYTES` for container shared memory, not volume size (files: `README.md`, `docs/configuration.md`)
+  - Notes: package tests passed 16/16.
