@@ -367,9 +367,9 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
         if (options.HasServiceInstanceSettings)
         {
-            requestedRegionId = string.IsNullOrWhiteSpace(options.Region)
+            requestedRegionId = options.Region is null
                 ? null
-                : await ResolveRegionIdAsync(options.Region, cancellationToken).ConfigureAwait(false);
+                : await ResolveRegionIdAsync(options.Region.Value.ToRailwayIdentifier(), cancellationToken).ConfigureAwait(false);
 
             await SendAsync<UpdateServiceInstanceData>(
                 UpdateServiceInstanceMutation,

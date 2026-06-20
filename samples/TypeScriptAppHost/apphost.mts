@@ -1,5 +1,6 @@
 import {
   createBuilder,
+  RailwayPostgresRegions,
   RailwayPostgresRestartPolicy,
   railwayPostgresOwnershipMode,
 } from "./.aspire/modules/aspire.mjs";
@@ -14,7 +15,7 @@ const apiToken = await builder.addParameter("railway-api-token", { secret: true 
 let postgres = await builder.addPostgres("postgres");
 postgres = await postgres.publishToRailway(serviceName, projectId, environmentId, apiToken, {
   ownershipMode: railwayPostgresOwnershipMode.createOrAdopt,
-  region: "europe-west4-drams3a",
+  region: RailwayPostgresRegions.EuWestMetal,
   restartPolicy: RailwayPostgresRestartPolicy.OnFailure,
   restartPolicyMaxRetries: 10,
   memoryGB: 2,

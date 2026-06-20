@@ -12,9 +12,9 @@ public sealed class RailwayPostgresDeploymentOptionsDto
     public RailwayPostgresOwnershipMode? OwnershipMode { get; set; }
 
     /// <summary>
-    /// Gets or sets the Railway region identifier for the PostgreSQL service.
+    /// Gets or sets the Railway region for the PostgreSQL service.
     /// </summary>
-    public string? Region { get; set; }
+    public RailwayPostgresRegions? Region { get; set; }
 
     /// <summary>
     /// Gets or sets the Railway restart policy for the PostgreSQL service.

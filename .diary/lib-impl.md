@@ -1,7 +1,7 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: deployment options are implemented and live-verified via the temp Azure/Railway app.
-- Open questions/risks: HTTP healthcheck path and replica count remain intentionally unsupported for PostgreSQL semantics; Railway docs list suffixed region identifiers, while API also exposes aliases that map to short ids.
+- Current plan: deployment options are implemented and live-verified via the temp Azure/Railway app; `Region` is now a typed enum.
+- Open questions/risks: HTTP healthcheck path and replica count remain intentionally unsupported for PostgreSQL semantics.
 - Next actions: package/release review when ready.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
@@ -51,3 +51,8 @@
   - Why: suffixed Railway region names such as `us-east4-eqdc4a` looked project-specific.
   - Change: checked official Railway regions docs and live `regions` GraphQL output (cmds: Railway GraphQL `regions`)
   - Notes: docs list the suffixed values as Config as Code identifiers; API also exposes aliases (`us-east4`, `europe-west4`, etc.) that map to short ids (`iad`, `ams`, `sin`, `sfo`).
+### 2026-06-20 15:24 +01:00 (pingu/lib-impl)
+- Type Railway region option [infra] (impact: med)
+  - Why: string `Region` allowed invalid user input and made supported values less discoverable.
+  - Change: converted `RailwayPostgresRegions` from string constants to enum, mapped enum values to Railway identifiers internally, and updated TypeScript samples/docs (files: `RailwayPostgresRegions.cs`, `RailwayPostgresDeploymentOptions.cs`, `RailwayPostgresDeploymentOptionsDto.cs`, `README.md`, `docs/*`, `samples/TypeScriptAppHost/apphost.mts`)
+  - Notes: C# usage shape stays `options.Region = RailwayPostgresRegions.EuWestMetal`; TypeScript generated `RailwayPostgresRegions` enum.

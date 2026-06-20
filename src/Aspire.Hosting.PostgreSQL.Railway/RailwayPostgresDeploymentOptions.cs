@@ -27,9 +27,9 @@ public sealed class RailwayPostgresDeploymentOptions
     }
 
     /// <summary>
-    /// Gets or sets the Railway region identifier for the PostgreSQL service.
+    /// Gets or sets the Railway region for the PostgreSQL service.
     /// </summary>
-    public string? Region { get; set; }
+    public RailwayPostgresRegions? Region { get; set; }
 
     /// <summary>
     /// Gets or sets the Railway restart policy for the PostgreSQL service.
@@ -57,7 +57,7 @@ public sealed class RailwayPostgresDeploymentOptions
     public long? SharedMemoryBytes { get; set; }
 
     internal bool HasServiceInstanceSettings =>
-        !string.IsNullOrWhiteSpace(Region)
+        Region is not null
         || RestartPolicy is not null
         || RestartPolicyMaxRetries is not null;
 
@@ -75,9 +75,9 @@ public sealed class RailwayPostgresDeploymentOptions
 
     internal void Validate()
     {
-        if (Region is not null && string.IsNullOrWhiteSpace(Region))
+        if (Region is not null && !Enum.IsDefined(Region.Value))
         {
-            throw new InvalidOperationException("Railway PostgreSQL region cannot be empty.");
+            throw new InvalidOperationException("Railway PostgreSQL region is not supported.");
         }
 
         if (RestartPolicy is not null && !Enum.IsDefined(RestartPolicy.Value))

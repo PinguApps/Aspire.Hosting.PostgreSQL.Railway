@@ -76,6 +76,7 @@ builder.Build().Run();
 ```ts
 import {
   createBuilder,
+  RailwayPostgresRegions,
   RailwayPostgresRestartPolicy,
   railwayPostgresOwnershipMode,
 } from "./.aspire/modules/aspire.mjs";
@@ -90,7 +91,7 @@ const apiToken = await builder.addParameter("railway-api-token", { secret: true 
 let postgres = await builder.addPostgres("postgres");
 postgres = await postgres.publishToRailway(serviceName, projectId, environmentId, apiToken, {
   ownershipMode: railwayPostgresOwnershipMode.createOrAdopt,
-  region: "europe-west4-drams3a",
+  region: RailwayPostgresRegions.EuWestMetal,
   restartPolicy: RailwayPostgresRestartPolicy.OnFailure,
   restartPolicyMaxRetries: 10,
   memoryGB: 2,
@@ -134,7 +135,7 @@ If `railway-environment-id` is not a UUID, the deployment step resolves it by li
 
 | Option | Purpose |
 | --- | --- |
-| `Region` | Railway region. Use `RailwayPostgresRegions` constants, Railway region names such as `europe-west4-drams3a`, or short ids such as `ams`. |
+| `Region` | Railway region enum: `UsWestMetal`, `UsEastMetal`, `EuWestMetal`, or `SoutheastAsiaMetal`. |
 | `RestartPolicy` | Railway restart policy: `Always`, `OnFailure`, or `Never`. |
 | `RestartPolicyMaxRetries` | Maximum Railway restart attempts. |
 | `MemoryGB` | Railway memory limit in GB. |

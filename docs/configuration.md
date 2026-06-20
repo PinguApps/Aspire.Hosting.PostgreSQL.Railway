@@ -45,7 +45,7 @@ postgres.PublishToRailway(
 
 | Option | Railway setting |
 | --- | --- |
-| `Region` | Service instance region. Constants, Railway region names, and short ids are resolved during deploy. |
+| `Region` | Service instance region enum: `UsWestMetal`, `UsEastMetal`, `EuWestMetal`, or `SoutheastAsiaMetal`. |
 | `RestartPolicy` | Service restart policy. |
 | `RestartPolicyMaxRetries` | Service restart retry limit. |
 | `MemoryGB` | Service instance memory limit in GB. |

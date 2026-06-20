@@ -1,19 +1,47 @@
 namespace Aspire.Hosting.PostgreSQL.Railway;
 
 /// <summary>
-/// Known Railway region identifiers.
+/// Railway deployment regions for PostgreSQL services.
 /// </summary>
-public static class RailwayPostgresRegions
+public enum RailwayPostgresRegions
 {
     /// <summary>US West Metal, California, USA.</summary>
-    public const string UsWestMetal = "us-west2";
+    UsWestMetal,
 
     /// <summary>US East Metal, Virginia, USA.</summary>
-    public const string UsEastMetal = "us-east4-eqdc4a";
+    UsEastMetal,
 
     /// <summary>EU West Metal, Amsterdam, Netherlands.</summary>
-    public const string EuWestMetal = "europe-west4-drams3a";
+    EuWestMetal,
 
     /// <summary>Southeast Asia Metal, Singapore.</summary>
-    public const string SoutheastAsiaMetal = "asia-southeast1-eqsg3a";
+    SoutheastAsiaMetal,
+}
+
+internal static class RailwayPostgresRegionExtensions
+{
+    public static string ToRailwayIdentifier(this RailwayPostgresRegions region)
+    {
+        if (region == RailwayPostgresRegions.UsWestMetal)
+        {
+            return "us-west2";
+        }
+
+        if (region == RailwayPostgresRegions.UsEastMetal)
+        {
+            return "us-east4-eqdc4a";
+        }
+
+        if (region == RailwayPostgresRegions.EuWestMetal)
+        {
+            return "europe-west4-drams3a";
+        }
+
+        if (region == RailwayPostgresRegions.SoutheastAsiaMetal)
+        {
+            return "asia-southeast1-eqsg3a";
+        }
+
+        throw new InvalidOperationException("Railway PostgreSQL region is not supported.");
+    }
 }
