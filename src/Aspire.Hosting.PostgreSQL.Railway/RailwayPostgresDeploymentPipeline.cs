@@ -61,14 +61,13 @@ internal static class RailwayPostgresDeploymentPipeline
             deployment,
             client,
             cachedIdentity,
+            identity => identityStore.SaveAsync(resource.Name, identity, context.CancellationToken),
             progressReporter,
             resource.Name,
             context.CancellationToken)
             .ConfigureAwait(false);
 
         await ApplyOutputsAsync(resource, context, result.Database, context.CancellationToken).ConfigureAwait(false);
-
-        await identityStore.SaveAsync(resource.Name, result.RemoteIdentity, context.CancellationToken).ConfigureAwait(false);
     }
 
     internal static async Task<RailwayPostgresDatabaseDetails?> ExecuteAsync(
@@ -81,6 +80,7 @@ internal static class RailwayPostgresDeploymentPipeline
             deployment,
             client,
             cachedIdentity: null,
+            saveIdentityStateAsync: null,
             progressReporter: null,
             resourceName: null,
             cancellationToken).ConfigureAwait(false);
@@ -101,14 +101,10 @@ internal static class RailwayPostgresDeploymentPipeline
             deployment,
             client,
             cachedIdentity,
+            saveIdentityStateAsync,
             progressReporter: null,
             resourceName: null,
             cancellationToken).ConfigureAwait(false);
-
-        if (saveIdentityStateAsync is not null)
-        {
-            await saveIdentityStateAsync(result.RemoteIdentity).ConfigureAwait(false);
-        }
 
         return result.Database;
     }
@@ -126,14 +122,10 @@ internal static class RailwayPostgresDeploymentPipeline
             deployment,
             client,
             cachedIdentity,
+            saveIdentityStateAsync,
             progressReporter,
             resourceName,
             cancellationToken).ConfigureAwait(false);
-
-        if (saveIdentityStateAsync is not null)
-        {
-            await saveIdentityStateAsync(result.RemoteIdentity).ConfigureAwait(false);
-        }
 
         return result.Database;
     }
@@ -168,6 +160,7 @@ internal static class RailwayPostgresDeploymentPipeline
         RailwayPostgresResolvedDeployment deployment,
         IRailwayPostgresManagementClient client,
         RailwayPostgresRemoteIdentityState? cachedIdentity,
+        Func<RailwayPostgresRemoteIdentityState, Task>? saveIdentityStateAsync,
         IRailwayPostgresDeploymentProgressReporter? progressReporter,
         string? resourceName,
         CancellationToken cancellationToken)
@@ -232,6 +225,11 @@ internal static class RailwayPostgresDeploymentPipeline
             await new RailwayPostgresCreateFlow(client)
                 .ExecuteAsync(deployment, ownership, cancellationToken)
                 .ConfigureAwait(false);
+
+        if (saveIdentityStateAsync is not null)
+        {
+            await saveIdentityStateAsync(createResult.RemoteIdentity).ConfigureAwait(false);
+        }
 
         if (deployment.Options.HasAny)
         {

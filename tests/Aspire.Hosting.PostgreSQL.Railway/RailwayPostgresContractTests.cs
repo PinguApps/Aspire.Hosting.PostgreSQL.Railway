@@ -224,6 +224,43 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task DeploymentPipeline_SavesRemoteIdentityBeforePostCreateWork()
+    {
+        RailwayPostgresResolvedDeployment deployment = new(
+            "orders-postgres",
+            "project-id",
+            "environment-id",
+            RailwayPostgresOwnershipMode.CreateOnly,
+            new RailwayPostgresManagementCredentials("management-secret"),
+            new RailwayPostgresDeploymentOptions
+            {
+                RestartPolicy = RailwayPostgresRestartPolicy.Never,
+            });
+        FakeManagementClient client = new(CreateServiceDetails())
+        {
+            ConfigureException = new InvalidOperationException("Configuration failed."),
+        };
+        RailwayPostgresRemoteIdentityState? savedIdentity = null;
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            RailwayPostgresDeploymentPipeline.ExecuteAsync(
+                deployment,
+                client,
+                cachedIdentity: null,
+                identity =>
+                {
+                    savedIdentity = identity;
+                    return Task.CompletedTask;
+                },
+                CancellationToken.None));
+
+        Assert.Equal("Configuration failed.", exception.Message);
+        Assert.NotNull(savedIdentity);
+        Assert.Equal("orders-postgres", savedIdentity.ServiceName);
+        Assert.Equal("svc_123", savedIdentity.ServiceId);
+    }
+
+    [Fact]
     public async Task CreateFlow_CreatesRailwayServiceAndWaitsForConnectionVariables()
     {
         RailwayPostgresResolvedDeployment deployment = CreateDeployment(RailwayPostgresOwnershipMode.CreateOnly);
@@ -963,6 +1000,8 @@ public sealed class RailwayPostgresContractTests
 
         public RailwayPostgresDeploymentOptions? ConfiguredOptions { get; private set; }
 
+        public Exception? ConfigureException { get; init; }
+
         public Task<string> ResolveEnvironmentIdAsync(
             string projectId,
             string environmentIdOrName,
@@ -1039,6 +1078,11 @@ public sealed class RailwayPostgresContractTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             _ = allowVolumeRegionMigration;
+
+            if (ConfigureException is not null)
+            {
+                return Task.FromException(ConfigureException);
+            }
 
             ConfiguredProjectId = projectId;
             ConfiguredEnvironmentId = environmentId;
