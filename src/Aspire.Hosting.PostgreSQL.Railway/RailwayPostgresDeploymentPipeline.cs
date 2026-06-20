@@ -147,12 +147,42 @@ internal static class RailwayPostgresDeploymentPipeline
             .EnsureDatabasesAsync(service, childDatabases.Select(database => database.DatabaseName), cancellationToken)
             .ConfigureAwait(false);
 
-        resource.ApplyRailwayPostgresConnectionOutput(service);
+        RailwayPostgresConnectionOutput serverOutput = resource.ApplyRailwayPostgresConnectionOutput(service);
         resource.TryGetRailwayPostgresOutputs()?.Populate(service);
 
         foreach (PostgresDatabaseResource childDatabase in childDatabases)
         {
-            childDatabase.ApplyRailwayPostgresConnectionOutput(service.WithDatabaseName(childDatabase.DatabaseName));
+            RailwayPostgresConnectionOutput childOutput =
+                childDatabase.ApplyRailwayPostgresConnectionOutput(service.WithDatabaseName(childDatabase.DatabaseName));
+            ApplyRailwayPostgresReferenceOverrides(context.Model, childDatabase, childOutput);
+        }
+
+        ApplyRailwayPostgresReferenceOverrides(context.Model, resource, serverOutput);
+    }
+
+    internal static void ApplyRailwayPostgresReferenceOverrides(
+        DistributedApplicationModel model,
+        IResourceWithConnectionString source,
+        IResourceWithConnectionString output)
+    {
+        foreach (IResourceWithEnvironment target in model.Resources.OfType<IResourceWithEnvironment>())
+        {
+            target.Annotations.Add(new EnvironmentCallbackAnnotation(context =>
+            {
+                if (context.ExecutionContext.Operation == DistributedApplicationOperation.Run)
+                {
+                    return;
+                }
+
+                foreach (KeyValuePair<string, object> environmentVariable in context.EnvironmentVariables.ToArray())
+                {
+                    if (environmentVariable.Value is ConnectionStringReference reference
+                        && ReferenceEquals(reference.Resource, source))
+                    {
+                        context.EnvironmentVariables[environmentVariable.Key] = new ConnectionStringReference(output, reference.Optional);
+                    }
+                }
+            }));
         }
     }
 

@@ -23,11 +23,12 @@ public static class RailwayPostgresReferenceBuilderExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(source);
 
-        IResourceWithConnectionString connectionResource = GetConnectionResource(source.Resource);
+        IResourceWithConnectionString publishConnectionResource = GetPublishConnectionResource(source.Resource);
 
         return builder.WithRailwayPostgresConnectionReference(
             source.Resource,
-            connectionResource,
+            source.Resource,
+            publishConnectionResource,
             connectionName,
             optional);
     }
@@ -46,11 +47,12 @@ public static class RailwayPostgresReferenceBuilderExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(source);
 
-        IResourceWithConnectionString connectionResource = GetConnectionResource(source.Resource);
+        IResourceWithConnectionString publishConnectionResource = GetPublishConnectionResource(source.Resource);
 
         return builder.WithRailwayPostgresConnectionReference(
             source.Resource,
-            connectionResource,
+            source.Resource,
+            publishConnectionResource,
             connectionName,
             optional);
     }
@@ -58,7 +60,8 @@ public static class RailwayPostgresReferenceBuilderExtensions
     private static IResourceBuilder<TDestination> WithRailwayPostgresConnectionReference<TDestination>(
         this IResourceBuilder<TDestination> builder,
         IResourceWithConnectionString relationshipResource,
-        IResourceWithConnectionString connectionResource,
+        IResourceWithConnectionString localConnectionResource,
+        IResourceWithConnectionString publishConnectionResource,
         string? connectionName,
         bool optional)
         where TDestination : IResourceWithEnvironment
@@ -71,6 +74,10 @@ public static class RailwayPostgresReferenceBuilderExtensions
 
         return builder.WithEnvironment(context =>
         {
+            IResourceWithConnectionString connectionResource = context.ExecutionContext.Operation == DistributedApplicationOperation.Run
+                ? localConnectionResource
+                : publishConnectionResource;
+
             if (flags.HasFlag(ReferenceEnvironmentInjectionFlags.ConnectionString))
             {
                 string key = connectionResource.ConnectionStringEnvironmentVariable ?? $"{ConnectionStringEnvironmentName}{connectionName}";
@@ -85,22 +92,22 @@ public static class RailwayPostgresReferenceBuilderExtensions
         });
     }
 
-    private static IResourceWithConnectionString GetConnectionResource(PostgresServerResource resource)
+    private static IResourceWithConnectionString GetPublishConnectionResource(PostgresServerResource resource)
     {
         RailwayPostgresOutputs? outputs = resource.TryGetRailwayPostgresOutputs();
 
         return outputs is null
             ? resource
-            : resource.ApplyRailwayPostgresReferenceConnectionOutput(outputs);
+            : RailwayPostgresReferenceConnectionOutput.ForServer(outputs);
     }
 
-    private static IResourceWithConnectionString GetConnectionResource(PostgresDatabaseResource resource)
+    private static IResourceWithConnectionString GetPublishConnectionResource(PostgresDatabaseResource resource)
     {
         RailwayPostgresOutputs? outputs = resource.Parent.TryGetRailwayPostgresOutputs();
 
         return outputs is null
             ? resource
-            : resource.ApplyRailwayPostgresReferenceConnectionOutput(outputs);
+            : RailwayPostgresReferenceConnectionOutput.ForDatabase(outputs, resource.DatabaseName);
     }
 
     private static void SplatConnectionProperties(

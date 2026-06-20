@@ -144,7 +144,7 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
-    public async Task PublishToRailway_RedirectsChildDatabaseReferencesToRailwayOutputs()
+    public async Task PublishToRailway_UsesRailwayOutputsOnlyForPublishReferences()
     {
         IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
         IResourceBuilder<PostgresServerResource> postgres = app.AddPostgres("postgres");
@@ -158,14 +158,20 @@ public sealed class RailwayPostgresContractTests
         IResourceBuilder<ContainerResource> api = app.AddContainer("api", "example/api")
             .WithReference(orders);
 
-        ConnectionStringRedirectAnnotation redirect =
-            Assert.Single(orders.Resource.Annotations.OfType<ConnectionStringRedirectAnnotation>());
-        RailwayPostgresReferenceConnectionOutput output =
-            Assert.IsType<RailwayPostgresReferenceConnectionOutput>(redirect.Resource);
+        Assert.Empty(postgres.Resource.Annotations.OfType<ConnectionStringRedirectAnnotation>());
+        Assert.Empty(orders.Resource.Annotations.OfType<ConnectionStringRedirectAnnotation>());
 
-        Assert.Contains("{postgres.outputs.Host}", output.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
-        Assert.Contains("Database=orders", output.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
-        Assert.DoesNotContain("railway-api-token", output.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
+        Dictionary<string, object> runEnvironmentVariables = [];
+        DistributedApplicationExecutionContext runContext = new(DistributedApplicationOperation.Run);
+        EnvironmentCallbackContext runCallbackContext = new(runContext, api.Resource, runEnvironmentVariables, CancellationToken.None);
+
+        foreach (EnvironmentCallbackAnnotation annotation in api.Resource.Annotations.OfType<EnvironmentCallbackAnnotation>())
+        {
+            await annotation.Callback(runCallbackContext);
+        }
+
+        ConnectionStringReference runConnectionString = Assert.IsType<ConnectionStringReference>(runEnvironmentVariables["ConnectionStrings__orders"]);
+        Assert.Same(orders.Resource, runConnectionString.Resource);
 
         Dictionary<string, object> environmentVariables = [];
         DistributedApplicationExecutionContext executionContext = new(DistributedApplicationOperation.Publish);
@@ -181,6 +187,45 @@ public sealed class RailwayPostgresContractTests
             Assert.IsType<RailwayPostgresReferenceConnectionOutput>(connectionString.Resource);
         Assert.Contains("{postgres.outputs.Host}", referencedOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
         Assert.Contains("Database=orders", referencedOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
+        Assert.DoesNotContain("railway-api-token", referencedOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DeploymentOutputs_RedirectDatabasesAddedAfterPublishToRailwayOutputs()
+    {
+        IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
+        IResourceBuilder<PostgresServerResource> postgres = app.AddPostgres("postgres")
+            .PublishToRailway(
+                "orders-postgres",
+                app.AddParameter("railway-project-id"),
+                app.AddParameter("railway-environment-id"),
+                app.AddParameter("railway-api-token", secret: true));
+        IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders");
+        IResourceBuilder<ContainerResource> api = app.AddContainer("api", "example/api");
+        global::Aspire.Hosting.ResourceBuilderExtensions.WithReference(api, orders);
+
+        RailwayPostgresDatabaseDetails service = CreateServiceDetails(databaseName: "railway");
+        postgres.Resource.ApplyRailwayPostgresConnectionOutput(service);
+        RailwayPostgresConnectionOutput ordersOutput =
+            orders.Resource.ApplyRailwayPostgresConnectionOutput(service.WithDatabaseName("orders"));
+        postgres.Resource.GetRailwayPostgresOutputs().Populate(service);
+        RailwayPostgresDeploymentPipeline.ApplyRailwayPostgresReferenceOverrides(
+            new DistributedApplicationModel(app.Resources),
+            orders.Resource,
+            ordersOutput);
+
+        Dictionary<string, object> environmentVariables = [];
+        DistributedApplicationExecutionContext executionContext = new(DistributedApplicationOperation.Publish);
+        EnvironmentCallbackContext callbackContext = new(executionContext, api.Resource, environmentVariables, CancellationToken.None);
+
+        foreach (EnvironmentCallbackAnnotation annotation in api.Resource.Annotations.OfType<EnvironmentCallbackAnnotation>())
+        {
+            await annotation.Callback(callbackContext);
+        }
+
+        ConnectionStringReference connectionString = Assert.IsType<ConnectionStringReference>(environmentVariables["ConnectionStrings__orders"]);
+        RailwayPostgresConnectionOutput output = Assert.IsType<RailwayPostgresConnectionOutput>(connectionString.Resource);
+        Assert.Equal("orders", new NpgsqlConnectionStringBuilder(await output.GetConnectionStringAsync(CancellationToken.None)).Database);
     }
 
     [Fact]
