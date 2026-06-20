@@ -6,6 +6,9 @@ namespace Aspire.Hosting.PostgreSQL.Railway.Deployment;
 
 internal static class RailwayPostgresDatabaseProvisioner
 {
+    private static readonly TimeSpan _provisioningTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan _provisioningDelay = TimeSpan.FromSeconds(2);
+
     public static async Task EnsureDatabasesAsync(
         RailwayPostgresDatabaseDetails service,
         IEnumerable<string> databaseNames,
@@ -31,6 +34,46 @@ internal static class RailwayPostgresDatabaseProvisioner
             ? service.ConnectionString
             : service.ProvisioningConnectionString;
 
+        await ExecuteWithRetryAsync(
+            () => EnsureDatabasesOnceAsync(connectionString, distinctDatabaseNames, cancellationToken),
+            cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    internal static bool IsTransientProvisioningException(Exception exception)
+    {
+        return exception is NpgsqlException
+            or TimeoutException
+            or IOException
+            || (exception.InnerException is not null && IsTransientProvisioningException(exception.InnerException));
+    }
+
+    private static async Task ExecuteWithRetryAsync(
+        Func<Task> operation,
+        CancellationToken cancellationToken)
+    {
+        DateTimeOffset deadline = DateTimeOffset.UtcNow + _provisioningTimeout;
+
+        while (true)
+        {
+            try
+            {
+                await operation().ConfigureAwait(false);
+                return;
+            }
+            catch (Exception exception) when (IsTransientProvisioningException(exception)
+                && DateTimeOffset.UtcNow < deadline)
+            {
+                await Task.Delay(_provisioningDelay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static async Task EnsureDatabasesOnceAsync(
+        string connectionString,
+        IReadOnlyList<string> distinctDatabaseNames,
+        CancellationToken cancellationToken)
+    {
         await using NpgsqlConnection connection = new(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 

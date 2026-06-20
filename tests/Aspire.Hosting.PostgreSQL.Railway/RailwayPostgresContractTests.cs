@@ -294,6 +294,15 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public void DatabaseProvisioner_TreatsEarlyRailwayProxyDisconnectAsTransient()
+    {
+        IOException streamEnded = new("Attempted to read past the end of the stream.");
+        NpgsqlException exception = new("Exception while reading from stream", streamEnded);
+
+        Assert.True(RailwayPostgresDatabaseProvisioner.IsTransientProvisioningException(exception));
+    }
+
+    [Fact]
     public async Task ManagementClient_CreatesRailwayPostgresFromOfficialTemplate()
     {
         FakeHttpMessageHandler handler = new();
