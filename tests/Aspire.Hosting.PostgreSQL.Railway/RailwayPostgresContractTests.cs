@@ -1051,6 +1051,62 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task ManagementClient_IgnoresPreviousFailedDeploymentWhenPollingAfterConfiguration()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "id": "dep_before", "status": "FAILED" } },
+                "variables": {
+                  "PGHOST": "postgres.railway.internal",
+                  "PGPORT": "5432",
+                  "PGUSER": "postgres",
+                  "PGPASSWORD": "postgres-password",
+                  "PGDATABASE": "railway",
+                  "DATABASE_PUBLIC_URL": "postgresql://postgres:postgres-password@shortline.proxy.rlwy.net:27543/railway"
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "id": "dep_after", "status": "SUCCESS" } },
+                "variables": {
+                  "PGHOST": "postgres.railway.internal",
+                  "PGPORT": "5432",
+                  "PGUSER": "postgres",
+                  "PGPASSWORD": "postgres-password",
+                  "PGDATABASE": "railway",
+                  "DATABASE_PUBLIC_URL": "postgresql://postgres:postgres-password@shortline.proxy.rlwy.net:27543/railway"
+                }
+              }
+            }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        RailwayPostgresDatabaseDetails service = await client.WaitUntilReadyAsync(
+            "project-id",
+            "environment-id",
+            "svc_123",
+            new RailwayPostgresReadinessPollingOptions
+            {
+                Timeout = TimeSpan.FromSeconds(5),
+                Delay = TimeSpan.FromMilliseconds(1),
+                PreviousDeploymentId = "dep_before",
+            },
+            CancellationToken.None);
+
+        Assert.Equal("dep_after", service.LatestDeploymentId);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
     public async Task ManagementClient_ReadinessTimeoutReportsDeploymentStatusWhenVariablesExist()
     {
         FakeHttpMessageHandler handler = new();

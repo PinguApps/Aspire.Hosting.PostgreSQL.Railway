@@ -370,7 +370,8 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                 return service;
             }
 
-            if (IsTerminalUnsuccessfulDeployment(service))
+            if (IsExpectedDeployment(service, pollingOptions)
+                && IsTerminalUnsuccessfulDeployment(service))
             {
                 throw new RailwayPostgresProviderException(
                     RailwayPostgresProviderFailureKind.ProviderContract,
