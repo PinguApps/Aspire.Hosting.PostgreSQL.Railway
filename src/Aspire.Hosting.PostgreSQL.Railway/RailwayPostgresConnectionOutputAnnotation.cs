@@ -4,12 +4,12 @@ namespace Aspire.Hosting.PostgreSQL.Railway;
 
 internal sealed class RailwayPostgresConnectionOutputAnnotation : IResourceAnnotation
 {
-    public RailwayPostgresConnectionOutputAnnotation(RailwayPostgresConnectionOutput output)
+    public RailwayPostgresConnectionOutputAnnotation(IResourceWithConnectionString output)
     {
         ArgumentNullException.ThrowIfNull(output);
 
         Output = output;
     }
 
-    public RailwayPostgresConnectionOutput Output { get; }
+    public IResourceWithConnectionString Output { get; }
 }

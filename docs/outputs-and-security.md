@@ -4,10 +4,12 @@ Application projects should normally consume PostgreSQL through Aspire reference
 
 ```csharp
 builder.AddProject<Projects.Api>("api")
-    .WithReference(orders);
+    .WithReference(orders)
+    .WaitFor(postgres);
 ```
 
 After deploy, the server and child database connection strings resolve to Railway PostgreSQL.
+For C# AppHosts, the package's Railway-aware `WithReference` overload keeps Azure App Service from trying to resolve the Railway PostgreSQL resource as Azure-managed infrastructure.
 
 Supplementary Railway outputs are available on the server resource:
 

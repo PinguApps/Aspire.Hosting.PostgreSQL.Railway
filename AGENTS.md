@@ -142,6 +142,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Preserve normal local PostgreSQL behavior unless the work is explicitly about deploy-time Railway behavior.
 - Keep app-facing PostgreSQL outputs separate from infrastructure-only management credentials.
 - Railway PostgreSQL connection strings use SSL mode `Require`.
+- C# consumers should use normal `.WithReference(postgres/database)` and `.WaitFor(postgres)` calls; this package owns the Railway-aware deploy-time reference translation.
 
 ### Testing And Docs
 - Any behavior change must update or add active coverage in `tests/Aspire.Hosting.PostgreSQL.Railway/`.

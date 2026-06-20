@@ -23,7 +23,8 @@ IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgre
 IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders");
 
 builder.AddProject<Projects.Api>("api")
-    .WithReference(orders);
+    .WithReference(orders)
+    .WaitFor(postgres);
 
 builder.Build().Run();
 ```
@@ -50,3 +51,5 @@ postgres.PublishToRailway(
 ```
 
 Local runs behave like standard Aspire PostgreSQL. `PublishToRailway` only records deploy-time intent during AppHost model construction.
+
+Keep normal Aspire references in C# AppHosts. When `Aspire.Hosting.PostgreSQL.Railway` is imported, `.WithReference(postgres)` and `.WithReference(database)` use Railway PostgreSQL outputs during deploy for resources marked with `.PublishToRailway(...)`.

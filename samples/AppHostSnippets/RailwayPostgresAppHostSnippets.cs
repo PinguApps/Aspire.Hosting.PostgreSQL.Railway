@@ -24,7 +24,8 @@ public static class RailwayPostgresAppHostSnippets
         IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders");
 
         builder.AddProject<Projects.Api>("api")
-            .WithReference(orders);
+            .WithReference(orders)
+            .WaitFor(postgres);
     }
 
     public static void ConfigureCreateOnly(IDistributedApplicationBuilder builder)

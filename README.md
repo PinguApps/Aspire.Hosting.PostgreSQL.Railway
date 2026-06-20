@@ -56,7 +56,8 @@ IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgre
 IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders");
 
 builder.AddProject<Projects.Api>("api")
-    .WithReference(orders);
+    .WithReference(orders)
+    .WaitFor(postgres);
 
 builder.Build().Run();
 ```
@@ -109,6 +110,8 @@ aspire deploy --non-interactive
 ## Behaviour
 
 Local runs do not call Railway and keep normal Aspire PostgreSQL behaviour. During `aspire deploy`, this package creates or adopts the configured Railway PostgreSQL service, reads Railway's PostgreSQL variables, applies the server connection output, and applies child database connection strings for `AddDatabase(...)` resources.
+
+For C# AppHosts, importing `Aspire.Hosting.PostgreSQL.Railway` also makes `.WithReference(postgres)` and `.WithReference(database)` Railway-aware for resources marked with `.PublishToRailway(...)`. Consumers keep normal Aspire reference code while Azure App Service receives output-backed Railway PostgreSQL connection strings during deploy.
 
 ## Docs
 

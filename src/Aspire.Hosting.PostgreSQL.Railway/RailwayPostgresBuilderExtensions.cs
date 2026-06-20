@@ -124,9 +124,20 @@ public static class RailwayPostgresBuilderExtensions
                     options),
                 ResourceAnnotationMutationBehavior.Replace);
 
+            RailwayPostgresOutputs outputs = new(builder.Resource);
+
             builder.WithAnnotation(
-                new RailwayPostgresOutputsAnnotation(new RailwayPostgresOutputs(builder.Resource)),
+                new RailwayPostgresOutputsAnnotation(outputs),
                 ResourceAnnotationMutationBehavior.Replace);
+
+            builder.Resource.ApplyRailwayPostgresReferenceConnectionOutput(outputs);
+
+            foreach (PostgresDatabaseResource childDatabase in builder.ApplicationBuilder.Resources
+                .OfType<PostgresDatabaseResource>()
+                .Where(database => ReferenceEquals(database.Parent, builder.Resource)))
+            {
+                childDatabase.ApplyRailwayPostgresReferenceConnectionOutput(outputs);
+            }
 
             PostgresServerResource resource = builder.Resource;
 

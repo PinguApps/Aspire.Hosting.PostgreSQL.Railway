@@ -58,6 +58,19 @@ public static class RailwayPostgresResourceExtensions
         return ApplyRailwayPostgresConnectionOutput(resource.Annotations, database);
     }
 
+    internal static RailwayPostgresReferenceConnectionOutput ApplyRailwayPostgresReferenceConnectionOutput(
+        this PostgresServerResource resource,
+        RailwayPostgresOutputs outputs)
+    {
+        ArgumentNullException.ThrowIfNull(resource);
+        ArgumentNullException.ThrowIfNull(outputs);
+
+        RailwayPostgresReferenceConnectionOutput output = RailwayPostgresReferenceConnectionOutput.ForServer(outputs);
+        ApplyRailwayPostgresConnectionOutput(resource.Annotations, output);
+
+        return output;
+    }
+
     internal static RailwayPostgresConnectionOutput ApplyRailwayPostgresConnectionOutput(
         this PostgresDatabaseResource resource,
         RailwayPostgresDatabaseDetails database)
@@ -66,6 +79,19 @@ public static class RailwayPostgresResourceExtensions
         ArgumentNullException.ThrowIfNull(database);
 
         return ApplyRailwayPostgresConnectionOutput(resource.Annotations, database);
+    }
+
+    internal static RailwayPostgresReferenceConnectionOutput ApplyRailwayPostgresReferenceConnectionOutput(
+        this PostgresDatabaseResource resource,
+        RailwayPostgresOutputs outputs)
+    {
+        ArgumentNullException.ThrowIfNull(resource);
+        ArgumentNullException.ThrowIfNull(outputs);
+
+        RailwayPostgresReferenceConnectionOutput output = RailwayPostgresReferenceConnectionOutput.ForDatabase(outputs, resource.DatabaseName);
+        ApplyRailwayPostgresConnectionOutput(resource.Annotations, output);
+
+        return output;
     }
 
     internal static RailwayPostgresOutputs? TryGetRailwayPostgresOutputs(this PostgresServerResource resource)
@@ -84,6 +110,15 @@ public static class RailwayPostgresResourceExtensions
     {
         RailwayPostgresConnectionOutput output = new(database);
 
+        ApplyRailwayPostgresConnectionOutput(annotations, output);
+
+        return output;
+    }
+
+    private static void ApplyRailwayPostgresConnectionOutput(
+        ResourceAnnotationCollection annotations,
+        IResourceWithConnectionString output)
+    {
         RemoveExistingRailwayConnectionOutput(annotations);
 
         annotations.Add(new RailwayPostgresConnectionOutputAnnotation(output));
@@ -93,8 +128,6 @@ public static class RailwayPostgresResourceExtensions
         {
             annotations.Add(new ConnectionPropertyAnnotation(property.Key, property.Value));
         }
-
-        return output;
     }
 
     private static void RemoveExistingRailwayConnectionOutput(ResourceAnnotationCollection annotations)

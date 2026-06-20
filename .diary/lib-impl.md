@@ -1,8 +1,8 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: completed provider, deploy pipeline, docs, TypeScript support, and live deploy verification.
-- Open questions/risks: `.env` still contains a Railway environment id that does not match the visible production environment used for live verification.
-- Next actions: update `.env` `RAILWAY_ENVIRONMENT_ID`; optionally inspect/clean the live `orders-postgres` Railway service when no longer needed.
+- Current plan: provider/deploy pipeline complete; C# `.WithReference(postgres/database)` now routes Railway-published resources through output-backed connection references for Azure App Service.
+- Open questions/risks: User still needs to rerun `aspire deploy` manually in the verification app; no deploy command was run for that app.
+- Next actions: verify manual Azure App Service deploy; optionally inspect/clean the live `orders-postgres` Railway service when no longer needed.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
 ## Session log
@@ -11,3 +11,8 @@
   - Why: Railway rejects template fields on `serviceCreate`, and local deploy cannot reach Railway private PostgreSQL hosts for child database provisioning.
   - Change: switched service creation to `templateDeployV2`, normalized app connection strings from `PG*` variables, added public-url provisioning string, and updated tests/guide (files: `RailwayPostgresManagementClient.cs`, `RailwayPostgresConnectionString.cs`, `RailwayPostgresDatabaseDetails.cs`, `RailwayPostgresDatabaseProvisioner.cs`, `RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md` | cmds: `dotnet test`, `dotnet build`, `aspire restore`, `npm run typecheck`, `aspire deploy`)
   - Notes: live deploy succeeded against `orders-postgres` using process-scoped override `RAILWAY_ENVIRONMENT_ID=04dc0f90-a13d-4d6a-a8a5-a41240463ddd`; commits `c84d63d`, `f39c792`, `c8e9768`, `d5b2d91`.
+### 2026-06-20 02:31 +01:00 (pingu/lib-impl)
+- Fix C# Railway PostgreSQL references [infra] (impact: high)
+  - Why: Azure App Service processes `ConnectionStringReference.Resource.ConnectionStringExpression` directly, so default `PostgresDatabaseResource` references tried to resolve external Railway `postgres` as Azure App Service context.
+  - Change: added Railway-aware C# `WithReference` overloads and output-backed connection resources for Railway-published Postgres server/database resources; updated tests/docs/samples (files: `RailwayPostgresReferenceBuilderExtensions.cs`, `RailwayPostgresReferenceConnectionOutput.cs`, `RailwayPostgresContractTests.cs`, `README.md`)
+  - Notes: `dotnet test` passes; manual app deploy intentionally not run.
