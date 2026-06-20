@@ -1,6 +1,6 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: deployment options are implemented; clean create and reuse deploys are live-verified; empty `main` baseline exists on GitHub.
+- Current plan: deployment options are implemented; clean create and reuse deploys are live-verified; `pingu/lib-impl` now PRs cleanly into empty `main`.
 - Open questions/risks: Aspire printed Azure hostname can differ from the actual stable App Service hostname in existing state.
 - Next actions: open PR from `pingu/lib-impl` into `main`; package/release review when ready.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
@@ -81,3 +81,8 @@
   - Why: GitHub repo only had `pingu/lib-impl`, blocking normal PR flow into `main`.
   - Change: created local/remote `main` at empty root commit `9a9eb49` and set GitHub default branch to `main` (cmds: `git commit-tree`, `git update-ref`, `git push origin main`, `gh api ... default_branch=main`, `git remote set-head origin -a`)
   - Notes: current worktree remains on `pingu/lib-impl`; next action is PR `pingu/lib-impl` -> `main`.
+### 2026-06-20 22:31 +01:00 (pingu/lib-impl)
+- Rebase branch onto empty main [repo] (impact: med)
+  - Why: GitHub cannot compare unrelated root histories, so the empty `main` commit must be an ancestor of `pingu/lib-impl`.
+  - Change: created local backup `backup/pingu-lib-impl-before-main-ancestry`, rebased `pingu/lib-impl` with `main` as root ancestor, and force-pushed with lease (cmds: `git rebase --root --onto main`, `git push --force-with-lease`)
+  - Notes: file tree is unchanged; GitHub compare reports `ahead_by=36`, `behind_by=0`.
