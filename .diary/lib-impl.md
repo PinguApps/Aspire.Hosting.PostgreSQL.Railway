@@ -1,8 +1,8 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: deployment options are implemented; clean create and reuse deploys are live-verified; `pingu/lib-impl` now PRs cleanly into empty `main`.
+- Current plan: deployment options and TypeScript package fixture are aligned and verified; `pingu/lib-impl` PR targets empty `main`.
 - Open questions/risks: Aspire printed Azure hostname can differ from the actual stable App Service hostname in existing state.
-- Next actions: open PR from `pingu/lib-impl` into `main`; package/release review when ready.
+- Next actions: monitor PR checks; package/release review when ready.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
 ## Session log
@@ -86,3 +86,8 @@
   - Why: GitHub cannot compare unrelated root histories, so the empty `main` commit must be an ancestor of `pingu/lib-impl`.
   - Change: created local backup `backup/pingu-lib-impl-before-main-ancestry`, rebased `pingu/lib-impl` with `main` as root ancestor, and force-pushed with lease (cmds: `git rebase --root --onto main`, `git push --force-with-lease`)
   - Notes: file tree is unchanged; GitHub compare reports `ahead_by=36`, `behind_by=0`.
+### 2026-06-20 22:40 +01:00 (pingu/lib-impl)
+- Fix TypeScript package gate fixture [tests] (impact: med)
+  - Why: PR #1 failed because the TypeScript fixture still used Redis/old Railway option exports.
+  - Change: switched fixture to `addPostgres`, current Railway Postgres enums/options, database reference, and current output names (files: `tests/.../Fixtures/TypeScriptAppHost/*` | cmds: `gh pr checks`, `gh run view`, `eng/Validate-TypeScriptAppHostPackage.ps1`)
+  - Notes: local TypeScript package gate passed after fixture update.

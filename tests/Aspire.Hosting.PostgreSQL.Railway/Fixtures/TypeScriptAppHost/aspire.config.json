@@ -8,12 +8,13 @@
   },
   "channel": "stable",
   "packages": {
-    "Aspire.Hosting.Redis": "13.4.3",
+    "Aspire.Hosting.PostgreSQL": "13.4.3",
     "PinguApps.Aspire.Hosting.PostgreSQL.Railway": "../../../../src/Aspire.Hosting.PostgreSQL.Railway/Aspire.Hosting.PostgreSQL.Railway.csproj"
   },
   "Parameters": {
-    "railway-database-name": "typescript-fixture-cache",
-    "railway-account-email": "fixture@example.com",
-    "railway-api-key": "fixture-management-api-key"
+    "railway-postgres-service-name": "typescript-fixture-postgres",
+    "railway-project-id": "fixture-project-id",
+    "railway-environment-id": "fixture-environment-id",
+    "railway-api-token": "fixture-api-token"
   }
 }
