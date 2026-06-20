@@ -5,7 +5,8 @@ internal sealed class RailwayPostgresCreateServiceRequest
     public RailwayPostgresCreateServiceRequest(
         string serviceName,
         string projectId,
-        string environmentId)
+        string environmentId,
+        RailwayPostgresDeploymentOptions? options = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
@@ -14,6 +15,9 @@ internal sealed class RailwayPostgresCreateServiceRequest
         ServiceName = serviceName;
         ProjectId = projectId;
         EnvironmentId = environmentId;
+        Options = options is null
+            ? new RailwayPostgresDeploymentOptions()
+            : new RailwayPostgresDeploymentOptions(options);
     }
 
     public string ServiceName { get; }
@@ -21,4 +25,6 @@ internal sealed class RailwayPostgresCreateServiceRequest
     public string ProjectId { get; }
 
     public string EnvironmentId { get; }
+
+    public RailwayPostgresDeploymentOptions Options { get; }
 }

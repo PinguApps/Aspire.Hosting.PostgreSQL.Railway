@@ -34,7 +34,8 @@ internal sealed class RailwayPostgresCreateFlow
                 new RailwayPostgresCreateServiceRequest(
                     deployment.ServiceName,
                     deployment.ProjectId,
-                    deployment.EnvironmentId),
+                    deployment.EnvironmentId,
+                    deployment.Options),
                 cancellationToken).ConfigureAwait(false);
             created = true;
         }

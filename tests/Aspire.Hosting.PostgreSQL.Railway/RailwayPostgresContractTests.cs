@@ -269,6 +269,25 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task RemoteIdentityResolver_AdoptsConfiguredNameWhenCachedServiceWasDeleted()
+    {
+        RailwayPostgresDatabaseDetails replacement = CreateServiceDetails(serviceId: "svc_new");
+        DeletedCachedIdentityManagementClient client = new(replacement);
+
+        RailwayPostgresRemoteIdentityResolution resolution = await new RailwayPostgresRemoteIdentityResolver(client)
+            .ResolveAsync(
+                "project-id",
+                "environment-id",
+                "orders-postgres",
+                new RailwayPostgresRemoteIdentityState("orders-postgres", "svc_deleted"),
+                CancellationToken.None);
+
+        Assert.True(resolution.Found);
+        Assert.False(resolution.ResolvedFromCachedIdentity);
+        Assert.Equal("svc_new", resolution.Database?.ServiceId);
+    }
+
+    [Fact]
     public async Task ManagementClient_ConfiguresRailwayServiceInstanceAndLimitsAndSharedMemory()
     {
         FakeHttpMessageHandler handler = new();
@@ -381,7 +400,7 @@ public sealed class RailwayPostgresContractTests
               "data": {
                 "regions": [
                   { "id": "ams", "name": "europe-west4-drams3a", "region": "Amsterdam" },
-                  { "id": "sin", "name": "asia-southeast1-eqsg3a", "region": "Singapore" }
+                  { "id": "sin", "name": "asia-southeast1-eqsg3a", "region": "asia-southeast1-eqsg3a" }
                 ]
               }
             }
@@ -426,6 +445,94 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal(RailwayPostgresProviderFailureKind.Validation, exception.FailureKind);
         Assert.Contains("volume migration", exception.Message, StringComparison.Ordinal);
         Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task ManagementClient_AppliesRegionToTemplateDeployOnCreate()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "template": {
+                  "serializedConfig": {
+                    "services": {
+                      "template-service": {
+                        "name": "Postgres",
+                        "deploy": {
+                          "requiredMountPath": "/var/lib/postgresql/data"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "regions": [
+                  { "id": "sin", "name": "asia-southeast1-eqsg3a", "region": "asia-southeast1-eqsg3a" }
+                ]
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "templateDeployV2": { "projectId": "project-id", "workflowId": "workflow-id" } } }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "project": {
+                  "services": {
+                    "edges": [
+                      { "node": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null } }
+                    ]
+                  }
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "status": "DEPLOYING" } },
+                "variables": {}
+              }
+            }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        await client.CreateServiceAsync(
+            new RailwayPostgresCreateServiceRequest(
+                "orders-postgres",
+                "project-id",
+                "environment-id",
+                new RailwayPostgresDeploymentOptions
+                {
+                    Region = RailwayPostgresRegions.SoutheastAsiaMetal,
+                    RestartPolicy = RailwayPostgresRestartPolicy.OnFailure,
+                    RestartPolicyMaxRetries = 7,
+                }),
+            CancellationToken.None);
+
+        using JsonDocument deployRequest = JsonDocument.Parse(handler.Requests[2].Content!);
+        JsonElement deploy = deployRequest.RootElement
+            .GetProperty("variables")
+            .GetProperty("input")
+            .GetProperty("serializedConfig")
+            .GetProperty("services")
+            .GetProperty("template-service")
+            .GetProperty("deploy");
+
+        Assert.Equal("sin", deploy.GetProperty("region").GetString());
+        Assert.Equal(1, deploy.GetProperty("multiRegionConfig").GetProperty("sin").GetProperty("numReplicas").GetInt32());
+        Assert.Equal("ON_FAILURE", deploy.GetProperty("restartPolicyType").GetString());
+        Assert.Equal(7, deploy.GetProperty("restartPolicyMaxRetries").GetInt32());
     }
 
     [Fact]
@@ -484,7 +591,7 @@ public sealed class RailwayPostgresContractTests
             {
               "data": {
                 "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
-                "serviceInstance": { "latestDeployment": { "status": "DEPLOYING" } },
+                "serviceInstance": { "latestDeployment": { "status": "DEPLOYING", "deploymentStopped": true } },
                 "variables": {}
               }
             }
@@ -776,11 +883,13 @@ public sealed class RailwayPostgresContractTests
             new RailwayPostgresManagementCredentials("management-secret"));
     }
 
-    private static RailwayPostgresDatabaseDetails CreateServiceDetails(string databaseName = "railway")
+    private static RailwayPostgresDatabaseDetails CreateServiceDetails(
+        string databaseName = "railway",
+        string serviceId = "svc_123")
     {
         return new RailwayPostgresDatabaseDetails
         {
-            ServiceId = "svc_123",
+            ServiceId = serviceId,
             ServiceName = "orders-postgres",
             ProjectId = "project-id",
             EnvironmentId = "environment-id",
@@ -917,6 +1026,50 @@ public sealed class RailwayPostgresContractTests
             ConfiguredOptions = new RailwayPostgresDeploymentOptions(options);
 
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class DeletedCachedIdentityManagementClient : IRailwayPostgresManagementClient
+    {
+        private readonly RailwayPostgresDatabaseDetails _replacement;
+
+        public DeletedCachedIdentityManagementClient(RailwayPostgresDatabaseDetails replacement)
+        {
+            _replacement = replacement;
+        }
+
+        public Task<RailwayPostgresDatabaseDetails?> FindServiceByNameAsync(
+            string projectId,
+            string environmentId,
+            string serviceName,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _ = projectId;
+            _ = environmentId;
+
+            return Task.FromResult<RailwayPostgresDatabaseDetails?>(
+                string.Equals(serviceName, _replacement.ServiceName, StringComparison.Ordinal)
+                    ? _replacement
+                    : null);
+        }
+
+        public Task<RailwayPostgresDatabaseDetails> GetServiceAsync(
+            string projectId,
+            string environmentId,
+            string serviceId,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _ = projectId;
+            _ = environmentId;
+            _ = serviceId;
+
+            return Task.FromException<RailwayPostgresDatabaseDetails>(
+                new RailwayPostgresProviderException(
+                    RailwayPostgresProviderFailureKind.NotFound,
+                    statusCode: null,
+                    "Railway service was not found."));
         }
     }
 }

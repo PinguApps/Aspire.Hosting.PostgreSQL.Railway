@@ -105,10 +105,7 @@ internal sealed class RailwayPostgresRemoteIdentityResolver
 
         if (service.ServiceId != cachedIdentity.ServiceId)
         {
-            throw CreateUnsafeIdentityException(
-                configuredServiceName,
-                cachedIdentity.ServiceId,
-                service.ServiceId);
+            return RailwayPostgresRemoteIdentityResolution.FoundDatabase(service);
         }
 
         return RailwayPostgresRemoteIdentityResolution.FoundDatabase(

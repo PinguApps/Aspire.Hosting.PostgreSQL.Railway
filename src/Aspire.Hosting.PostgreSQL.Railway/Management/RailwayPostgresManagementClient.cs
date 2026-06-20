@@ -300,7 +300,14 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             new { id = PostgresTemplateId },
             cancellationToken).ConfigureAwait(false);
 
-        JsonNode serializedConfig = CreateSerializedConfig(templateData.Template.SerializedConfig, request.ServiceName);
+        string? requestedRegionId = request.Options.Region is null
+            ? null
+            : await ResolveRegionIdAsync(request.Options.Region.Value.ToRailwayIdentifier(), cancellationToken).ConfigureAwait(false);
+        JsonNode serializedConfig = CreateSerializedConfig(
+            templateData.Template.SerializedConfig,
+            request.ServiceName,
+            request.Options,
+            requestedRegionId);
 
         await SendAsync<DeployTemplateData>(
             DeployTemplateMutation,
@@ -347,7 +354,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                 throw new RailwayPostgresProviderException(
                     RailwayPostgresProviderFailureKind.ProviderContract,
                     statusCode: null,
-                    CreateDeploymentNotReadyMessage(serviceId, service, "stopped before becoming SUCCESS"));
+                    CreateDeploymentNotReadyMessage(serviceId, service, "failed before becoming SUCCESS"));
             }
 
             if (stopwatch.Elapsed >= pollingOptions.Timeout)
@@ -634,7 +641,11 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         return "anonymous";
     }
 
-    private static JsonNode CreateSerializedConfig(JsonElement serializedConfig, string serviceName)
+    private static JsonNode CreateSerializedConfig(
+        JsonElement serializedConfig,
+        string serviceName,
+        RailwayPostgresDeploymentOptions options,
+        string? requestedRegionId)
     {
         if (serializedConfig.ValueKind != JsonValueKind.Object)
         {
@@ -665,10 +676,36 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             if (service.Value is JsonObject serviceConfig)
             {
                 serviceConfig["name"] = serviceName;
+                ApplyTemplateDeployOptions(serviceConfig, options, requestedRegionId);
             }
         }
 
         return config;
+    }
+
+    private static void ApplyTemplateDeployOptions(
+        JsonObject serviceConfig,
+        RailwayPostgresDeploymentOptions options,
+        string? requestedRegionId)
+    {
+        JsonObject deploy = serviceConfig["deploy"] as JsonObject ?? [];
+        serviceConfig["deploy"] = deploy;
+
+        if (requestedRegionId is not null)
+        {
+            deploy["region"] = requestedRegionId;
+            deploy["multiRegionConfig"] = JsonSerializer.SerializeToNode(CreateMultiRegionConfigOrNull(requestedRegionId), _serializerOptions);
+        }
+
+        if (options.RestartPolicy is RailwayPostgresRestartPolicy restartPolicy)
+        {
+            deploy["restartPolicyType"] = ToRailwayRestartPolicy(restartPolicy);
+        }
+
+        if (options.RestartPolicyMaxRetries is int restartPolicyMaxRetries)
+        {
+            deploy["restartPolicyMaxRetries"] = restartPolicyMaxRetries;
+        }
     }
 
     private static IReadOnlyDictionary<string, string> ParseVariables(JsonElement variables)
@@ -844,15 +881,10 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
     private static bool IsTerminalUnsuccessfulDeployment(RailwayPostgresDatabaseDetails service)
     {
-        if (service.LatestDeploymentStopped == true
-            && !IsSuccessfulDeploymentStatus(service.LatestDeploymentStatus))
-        {
-            return true;
-        }
-
         return service.LatestDeploymentStatus is not null
             && (string.Equals(service.LatestDeploymentStatus, "FAILED", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(service.LatestDeploymentStatus, "CRASHED", StringComparison.OrdinalIgnoreCase));
+                || string.Equals(service.LatestDeploymentStatus, "CRASHED", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(service.LatestDeploymentStatus, "REMOVED", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string CreateReadinessTimeoutMessage(

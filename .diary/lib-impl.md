@@ -1,7 +1,7 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: deployment options are implemented; existing volume-backed region changes are now blocked before Railway migration.
-- Open questions/risks: Railway may take longer than Aspire's readiness window when a manual/UI volume migration is already in progress.
+- Current plan: deployment options are implemented; create-time region is applied in the Railway template payload before volume creation.
+- Open questions/risks: Aspire printed Azure hostname can differ from the actual stable App Service hostname in existing state.
 - Next actions: package/release review when ready.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
@@ -66,3 +66,8 @@
   - Why: changing an existing volume-backed DB to Singapore triggered Railway volume migration, queued/stopped deployments, and empty logs before container start.
   - Change: block automatic region changes for existing volume-backed services, report Railway deployment status/queued reason on readiness failure, and require Railway outputs before Azure push prereq (files: `RailwayPostgresManagementClient.cs`, `RailwayPostgresBuilderExtensions.cs`, `RailwayPostgresContractTests.cs`, `README.md`, `docs/configuration.md` | cmds: `dotnet test`, temp `deploy-local.ps1`)
   - Notes: temp deploy succeeded 26/26; `/postgres` returned 200 against `app-railway-manual-pinguapps.azurewebsites.net`.
+### 2026-06-20 16:18 +01:00 (pingu/lib-impl)
+- Fix clean Railway create with region options [infra] (impact: high)
+  - Why: applying `Region` after template creation could create the Postgres volume in Railway's default region, then trigger a volume migration on first deploy.
+  - Change: pass deploy options into `templateDeployV2` serialized config, keep polling through transient `deploymentStopped=true` while `DEPLOYING`, and adopt by configured name when cached service id was deleted (files: `RailwayPostgresCreateServiceRequest.cs`, `RailwayPostgresManagementClient.cs`, `RailwayPostgresRemoteIdentityResolver.cs`, `RailwayPostgresContractTests.cs` | cmds: `dotnet test`, temp `deploy-local.ps1`)
+  - Notes: deleted failed Railway service `205074f6-...`; clean create succeeded with service `6ba9f99d-...` in `sin`, reuse deploy succeeded, `/postgres` returned 200.
