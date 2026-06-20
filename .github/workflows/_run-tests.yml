@@ -28,6 +28,12 @@ on:
         required: false
       RAILWAY_API_KEY:
         required: false
+      RAILWAY_API_TOKEN:
+        required: false
+      RAILWAY_PROJECT_ID:
+        required: false
+      RAILWAY_ENVIRONMENT_ID:
+        required: false
   workflow_dispatch:
     inputs:
       test_filter:
@@ -51,6 +57,9 @@ jobs:
       DOTNET_NOLOGO: true
       RAILWAY_EMAIL: ${{ secrets.RAILWAY_EMAIL }}
       RAILWAY_API_KEY: ${{ secrets.RAILWAY_API_KEY }}
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
 
     steps:
       - name: Checkout repository
