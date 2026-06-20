@@ -217,10 +217,10 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         string password = GetVariableOrEmpty(variables, "PGPASSWORD");
         string databaseName = GetVariableOrEmpty(variables, "PGDATABASE");
         string publicDatabaseUrl = GetVariableOrEmpty(variables, "DATABASE_PUBLIC_URL");
-        string connectionString = RailwayPostgresConnectionString.Create(host, port, userName, password, databaseName);
-        string provisioningConnectionString = string.IsNullOrWhiteSpace(publicDatabaseUrl)
-            ? connectionString
-            : RailwayPostgresConnectionString.CreateFromUri(publicDatabaseUrl);
+        string connectionString = CreateConnectionStringOrEmpty(host, port, userName, password, databaseName);
+        string provisioningConnectionString = CreateProvisioningConnectionStringOrEmpty(
+            publicDatabaseUrl,
+            connectionString);
 
         return new RailwayPostgresDatabaseDetails
         {
@@ -550,6 +550,39 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                 RailwayPostgresProviderFailureKind.ProviderContract,
                 statusCode: null,
                 $"Railway PostgreSQL service '{serviceId}' returned invalid PGPORT '{value}'.");
+    }
+
+    private static string CreateConnectionStringOrEmpty(
+        string host,
+        int port,
+        string userName,
+        string password,
+        string databaseName)
+    {
+        if (string.IsNullOrWhiteSpace(host)
+            || port <= 0
+            || string.IsNullOrWhiteSpace(userName)
+            || string.IsNullOrWhiteSpace(password)
+            || string.IsNullOrWhiteSpace(databaseName))
+        {
+            return string.Empty;
+        }
+
+        return RailwayPostgresConnectionString.Create(host, port, userName, password, databaseName);
+    }
+
+    private static string CreateProvisioningConnectionStringOrEmpty(
+        string publicDatabaseUrl,
+        string connectionString)
+    {
+        if (!string.IsNullOrWhiteSpace(publicDatabaseUrl))
+        {
+            return RailwayPostgresConnectionString.CreateFromUri(publicDatabaseUrl);
+        }
+
+        return string.IsNullOrWhiteSpace(connectionString)
+            ? string.Empty
+            : connectionString;
     }
 
     private sealed class RailwayGraphQlRequest
