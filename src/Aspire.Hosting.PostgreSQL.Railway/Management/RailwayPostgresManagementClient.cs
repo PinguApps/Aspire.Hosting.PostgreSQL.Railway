@@ -116,6 +116,12 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         }
         """;
 
+    private const string GetVariablesQuery = """
+        query GetRailwayPostgresVariables($projectId: String!, $environmentId: String!, $serviceId: String!) {
+          variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId)
+        }
+        """;
+
     private const string RedeployServiceInstanceMutation = """
         mutation RedeployRailwayPostgresServiceInstance($environmentId: String!, $serviceId: String!) {
           serviceInstanceRedeploy(environmentId: $environmentId, serviceId: $serviceId)
@@ -469,22 +475,36 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
         if (options.SharedMemoryBytes is long sharedMemoryBytes)
         {
-            await SendAsync<UpsertVariableData>(
-                UpsertVariableMutation,
-                new
-                {
-                    input = new
+            string sharedMemoryValue = sharedMemoryBytes.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            IReadOnlyDictionary<string, string> variables = await GetVariablesAsync(
+                projectId,
+                environmentId,
+                serviceId,
+                cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!string.Equals(
+                GetVariableOrEmpty(variables, "RAILWAY_SHM_SIZE_BYTES"),
+                sharedMemoryValue,
+                StringComparison.Ordinal))
+            {
+                await SendAsync<UpsertVariableData>(
+                    UpsertVariableMutation,
+                    new
                     {
-                        projectId,
-                        environmentId,
-                        serviceId,
-                        name = "RAILWAY_SHM_SIZE_BYTES",
-                        value = sharedMemoryBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        skipDeploys = false,
+                        input = new
+                        {
+                            projectId,
+                            environmentId,
+                            serviceId,
+                            name = "RAILWAY_SHM_SIZE_BYTES",
+                            value = sharedMemoryValue,
+                            skipDeploys = false,
+                        },
                     },
-                },
-                cancellationToken).ConfigureAwait(false);
-            deploymentQueued = true;
+                    cancellationToken).ConfigureAwait(false);
+                deploymentQueued = true;
+            }
         }
 
         if (requestedRegionId is not null
@@ -819,6 +839,20 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         return meta is { ValueKind: JsonValueKind.Object }
             ? new RailwayDeploymentManifestState(meta.Value)
             : RailwayDeploymentManifestState.Empty;
+    }
+
+    private async Task<IReadOnlyDictionary<string, string>> GetVariablesAsync(
+        string projectId,
+        string environmentId,
+        string serviceId,
+        CancellationToken cancellationToken)
+    {
+        GetVariablesData data = await SendAsync<GetVariablesData>(
+            GetVariablesQuery,
+            new { projectId, environmentId, serviceId },
+            cancellationToken).ConfigureAwait(false);
+
+        return ParseVariables(data.Variables);
     }
 
     private static bool DeploymentManifestUsesRegion(JsonElement meta, string regionId)
@@ -1192,6 +1226,11 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
         public RailwayServiceInstance? ServiceInstance { get; set; }
 
+        public JsonElement Variables { get; set; }
+    }
+
+    private sealed class GetVariablesData
+    {
         public JsonElement Variables { get; set; }
     }
 

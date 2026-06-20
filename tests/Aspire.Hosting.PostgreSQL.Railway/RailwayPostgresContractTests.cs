@@ -586,6 +586,9 @@ public sealed class RailwayPostgresContractTests
             { "data": { "serviceInstanceLimitsUpdate": true } }
             """);
         handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "variables": { "RAILWAY_SHM_SIZE_BYTES": "134217728" } } }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
             { "data": { "variableUpsert": true } }
             """);
         handler.Enqueue(System.Net.HttpStatusCode.OK, """
@@ -611,7 +614,7 @@ public sealed class RailwayPostgresContractTests
             allowVolumeRegionMigration: false,
             CancellationToken.None);
 
-        Assert.Equal(6, handler.Requests.Count);
+        Assert.Equal(7, handler.Requests.Count);
         Assert.Contains("ListRailwayRegions", handler.Requests[0].Content, StringComparison.Ordinal);
         Assert.Contains("GetRailwayServiceInstanceDeployment", handler.Requests[1].Content, StringComparison.Ordinal);
 
@@ -638,7 +641,9 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal(2, limitsInput.GetProperty("memoryGB").GetDouble());
         Assert.Equal(1.5, limitsInput.GetProperty("vCPUs").GetDouble());
 
-        using JsonDocument variableRequest = JsonDocument.Parse(handler.Requests[4].Content!);
+        Assert.Contains("GetRailwayPostgresVariables", handler.Requests[4].Content, StringComparison.Ordinal);
+
+        using JsonDocument variableRequest = JsonDocument.Parse(handler.Requests[5].Content!);
         JsonElement variableInput = variableRequest.RootElement.GetProperty("variables").GetProperty("input");
         Assert.Equal("project-id", variableInput.GetProperty("projectId").GetString());
         Assert.Equal("environment-id", variableInput.GetProperty("environmentId").GetString());
@@ -647,7 +652,35 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("524288000", variableInput.GetProperty("value").GetString());
         Assert.False(variableInput.GetProperty("skipDeploys").GetBoolean());
 
-        Assert.Contains("RedeployRailwayPostgresServiceInstance", handler.Requests[5].Content, StringComparison.Ordinal);
+        Assert.Contains("RedeployRailwayPostgresServiceInstance", handler.Requests[6].Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ManagementClient_DoesNotUpsertUnchangedSharedMemory()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "variables": { "RAILWAY_SHM_SIZE_BYTES": "524288000" } } }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        bool deploymentQueued = await client.ConfigureServiceAsync(
+            "project-id",
+            "environment-id",
+            "svc_123",
+            new RailwayPostgresDeploymentOptions
+            {
+                SharedMemoryBytes = 524288000,
+            },
+            allowVolumeRegionMigration: false,
+            CancellationToken.None);
+
+        Assert.False(deploymentQueued);
+        Assert.Single(handler.Requests);
+        Assert.Contains("GetRailwayPostgresVariables", handler.Requests[0].Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("variableUpsert", handler.Requests[0].Content, StringComparison.Ordinal);
     }
 
     [Fact]
