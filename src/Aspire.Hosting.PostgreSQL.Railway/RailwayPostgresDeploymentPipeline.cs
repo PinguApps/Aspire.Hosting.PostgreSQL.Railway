@@ -12,6 +12,8 @@ namespace Aspire.Hosting.PostgreSQL.Railway;
 
 internal static class RailwayPostgresDeploymentPipeline
 {
+    private const string PostgresCreateDatabaseScriptAnnotationTypeName = "Aspire.Hosting.Postgres.PostgresCreateDatabaseScriptAnnotation";
+
     private static readonly HttpClient _managementHttpClient = new()
     {
         BaseAddress = new Uri("https://backboard.railway.com/graphql/v2"),
@@ -144,7 +146,7 @@ internal static class RailwayPostgresDeploymentPipeline
         ];
 
         await RailwayPostgresDatabaseProvisioner
-            .EnsureDatabasesAsync(service, childDatabases.Select(database => database.DatabaseName), cancellationToken)
+            .EnsureDatabasesAsync(service, CreateDatabaseProvisioningRequests(childDatabases), cancellationToken)
             .ConfigureAwait(false);
 
         RailwayPostgresConnectionOutput serverOutput = resource.ApplyRailwayPostgresConnectionOutput(service);
@@ -158,6 +160,37 @@ internal static class RailwayPostgresDeploymentPipeline
         }
 
         ApplyRailwayPostgresReferenceOverrides(context.Model, resource, serverOutput);
+    }
+
+    internal static IEnumerable<RailwayPostgresDatabaseProvisioningRequest> CreateDatabaseProvisioningRequests(
+        IEnumerable<PostgresDatabaseResource> childDatabases)
+    {
+        ArgumentNullException.ThrowIfNull(childDatabases);
+
+        foreach (PostgresDatabaseResource childDatabase in childDatabases)
+        {
+            yield return new RailwayPostgresDatabaseProvisioningRequest(
+                childDatabase.DatabaseName,
+                GetCreationScript(childDatabase));
+        }
+    }
+
+    private static string? GetCreationScript(PostgresDatabaseResource childDatabase)
+    {
+        object? annotation = childDatabase.Annotations
+            .LastOrDefault(annotation =>
+                string.Equals(
+                    annotation.GetType().FullName,
+                    PostgresCreateDatabaseScriptAnnotationTypeName,
+                    StringComparison.Ordinal));
+
+        return annotation?.GetType()
+            .GetProperty(
+                "Script",
+                System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.Public
+                    | System.Reflection.BindingFlags.NonPublic)
+            ?.GetValue(annotation) as string;
     }
 
     internal static void ApplyRailwayPostgresReferenceOverrides(

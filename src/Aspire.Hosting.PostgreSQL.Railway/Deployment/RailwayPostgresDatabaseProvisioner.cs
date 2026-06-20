@@ -11,21 +11,22 @@ internal static class RailwayPostgresDatabaseProvisioner
 
     public static async Task EnsureDatabasesAsync(
         RailwayPostgresDatabaseDetails service,
-        IEnumerable<string> databaseNames,
+        IEnumerable<RailwayPostgresDatabaseProvisioningRequest> databases,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(service);
-        ArgumentNullException.ThrowIfNull(databaseNames);
+        ArgumentNullException.ThrowIfNull(databases);
 
-        List<string> distinctDatabaseNames =
+        List<RailwayPostgresDatabaseProvisioningRequest> distinctDatabases =
         [
-            .. databaseNames
-            .Where(static databaseName => !string.IsNullOrWhiteSpace(databaseName))
-            .Distinct(StringComparer.Ordinal)
-            .Where(databaseName => !string.Equals(databaseName, service.DatabaseName, StringComparison.Ordinal))
+            .. databases
+            .Where(static database => !string.IsNullOrWhiteSpace(database.DatabaseName))
+            .GroupBy(static database => database.DatabaseName, StringComparer.Ordinal)
+            .Select(static group => group.First())
+            .Where(database => !string.Equals(database.DatabaseName, service.DatabaseName, StringComparison.Ordinal))
         ];
 
-        if (distinctDatabaseNames.Count == 0)
+        if (distinctDatabases.Count == 0)
         {
             return;
         }
@@ -35,9 +36,18 @@ internal static class RailwayPostgresDatabaseProvisioner
             : service.ProvisioningConnectionString;
 
         await ExecuteWithRetryAsync(
-            () => EnsureDatabasesOnceAsync(connectionString, distinctDatabaseNames, cancellationToken),
+            () => EnsureDatabasesOnceAsync(connectionString, distinctDatabases, cancellationToken),
             cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    internal static string CreateCreateDatabaseCommandText(RailwayPostgresDatabaseProvisioningRequest database)
+    {
+        ArgumentNullException.ThrowIfNull(database);
+
+        return string.IsNullOrWhiteSpace(database.CreationScript)
+            ? $"CREATE DATABASE {QuoteIdentifier(database.DatabaseName)}"
+            : database.CreationScript;
     }
 
     internal static bool IsTransientProvisioningException(Exception exception)
@@ -71,27 +81,27 @@ internal static class RailwayPostgresDatabaseProvisioner
 
     private static async Task EnsureDatabasesOnceAsync(
         string connectionString,
-        IReadOnlyList<string> distinctDatabaseNames,
+        IReadOnlyList<RailwayPostgresDatabaseProvisioningRequest> distinctDatabases,
         CancellationToken cancellationToken)
     {
         await using NpgsqlConnection connection = new(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-        foreach (string databaseName in distinctDatabaseNames)
+        foreach (RailwayPostgresDatabaseProvisioningRequest database in distinctDatabases)
         {
-            await EnsureDatabaseAsync(connection, databaseName, cancellationToken).ConfigureAwait(false);
+            await EnsureDatabaseAsync(connection, database, cancellationToken).ConfigureAwait(false);
         }
     }
 
     [SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "PostgreSQL identifiers cannot be parameterized; database names are quoted as identifiers.")]
     private static async Task EnsureDatabaseAsync(
         NpgsqlConnection connection,
-        string databaseName,
+        RailwayPostgresDatabaseProvisioningRequest database,
         CancellationToken cancellationToken)
     {
         await using NpgsqlCommand existsCommand = connection.CreateCommand();
         existsCommand.CommandText = "SELECT 1 FROM pg_database WHERE datname = @databaseName";
-        existsCommand.Parameters.AddWithValue("databaseName", databaseName);
+        existsCommand.Parameters.AddWithValue("databaseName", database.DatabaseName);
 
         object? exists = await existsCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
 
@@ -101,7 +111,7 @@ internal static class RailwayPostgresDatabaseProvisioner
         }
 
         await using NpgsqlCommand createCommand = connection.CreateCommand();
-        createCommand.CommandText = $"CREATE DATABASE {QuoteIdentifier(databaseName)}";
+        createCommand.CommandText = CreateCreateDatabaseCommandText(database);
         await createCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 

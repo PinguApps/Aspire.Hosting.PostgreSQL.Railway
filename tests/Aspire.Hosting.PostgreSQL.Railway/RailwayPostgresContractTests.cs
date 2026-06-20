@@ -1101,6 +1101,28 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public void DatabaseProvisioner_UsesAspireCreationScriptWhenConfigured()
+    {
+        const string creationScript = "CREATE DATABASE custom_orders";
+        IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
+        IResourceBuilder<PostgresServerResource> postgres = app.AddPostgres("postgres");
+        IResourceBuilder<PostgresDatabaseResource> orders = postgres
+            .AddDatabase("orders")
+            .WithCreationScript(creationScript);
+
+        RailwayPostgresDatabaseProvisioningRequest request = Assert.Single(
+            RailwayPostgresDeploymentPipeline.CreateDatabaseProvisioningRequests([orders.Resource]));
+
+        Assert.Equal("orders", request.DatabaseName);
+        Assert.Equal(creationScript, request.CreationScript);
+        Assert.Equal(creationScript, RailwayPostgresDatabaseProvisioner.CreateCreateDatabaseCommandText(request));
+        Assert.Equal(
+            "CREATE DATABASE \"orders\"",
+            RailwayPostgresDatabaseProvisioner.CreateCreateDatabaseCommandText(
+                new RailwayPostgresDatabaseProvisioningRequest("orders", creationScript: null)));
+    }
+
+    [Fact]
     public async Task ManagementClient_CreatesRailwayPostgresFromOfficialTemplate()
     {
         FakeHttpMessageHandler handler = new();
