@@ -1,8 +1,8 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: provider/deploy pipeline resolves Railway environment names, waits for variables, then retries child DB provisioning while Railway's public proxy warms up.
-- Open questions/risks: User still needs to rerun `aspire deploy` manually in the verification app; no deploy command was run by the agent.
-- Next actions: rerun manual app deploy; confirm Azure web app is created; open deployed `/postgres`; create/read a proof row.
+- Current plan: provider/deploy pipeline resolves Railway environment names, waits for variables, uses Railway public PostgreSQL proxy outputs, then retries child DB provisioning while the proxy warms up.
+- Open questions/risks: Existing deployments made before `dae5006` may still have private `railway.internal` app settings until redeployed; no deploy command was run by the agent.
+- Next actions: rerun manual app deploy to confirm generated Azure settings now use public proxy; open deployed `/postgres`; create/read a proof row.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
 ## Session log
@@ -31,3 +31,8 @@
   - Why: clean Railway template deploy can publish variables before the public PostgreSQL proxy accepts Npgsql connections, causing `Exception while reading from stream`.
   - Change: retry transient Npgsql/IO/timeout failures around child database creation and added regression coverage (files: `RailwayPostgresDatabaseProvisioner.cs`, `RailwayPostgresContractTests.cs` | cmds: `dotnet test tests\Aspire.Hosting.PostgreSQL.Railway\Aspire.Hosting.PostgreSQL.Railway.Tests.csproj -c Debug --no-restore`)
   - Notes: committed `9beb4c3`; tests passed 12/12.
+### 2026-06-20 12:01 +01:00 (pingu/lib-impl)
+- Use public Railway PostgreSQL outputs [infra] (impact: high)
+  - Why: Azure App Service received `railway-manual-postgres.railway.internal`, causing deployed `/postgres` to fail with `Name or service not known`.
+  - Change: parse `DATABASE_PUBLIC_URL` into app-facing host/port/user/password/database outputs while retaining fallback behavior; tests assert public proxy output (files: `RailwayPostgresManagementClient.cs`, `RailwayPostgresConnectionString.cs`, `RailwayPostgresContractTests.cs` | cmds: `dotnet test tests\Aspire.Hosting.PostgreSQL.Railway\Aspire.Hosting.PostgreSQL.Railway.Tests.csproj -c Debug --no-restore`)
+  - Notes: committed `dae5006`; tests passed 12/12.
