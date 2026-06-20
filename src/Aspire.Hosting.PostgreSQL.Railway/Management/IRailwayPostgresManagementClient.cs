@@ -52,6 +52,7 @@ internal interface IRailwayPostgresManagementClient
         string environmentId,
         string serviceId,
         RailwayPostgresDeploymentOptions options,
+        bool allowVolumeRegionMigration,
         CancellationToken cancellationToken)
     {
         return Task.FromException(new NotSupportedException("The Railway PostgreSQL management client does not support service configuration."));

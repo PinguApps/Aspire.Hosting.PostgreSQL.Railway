@@ -26,6 +26,10 @@ internal sealed class RailwayPostgresDatabaseDetails
 
     public string? LatestDeploymentStatus { get; init; }
 
+    public bool? LatestDeploymentStopped { get; init; }
+
+    public string? LatestDeploymentQueuedReason { get; init; }
+
     public bool HasConnectionVariables =>
         !string.IsNullOrWhiteSpace(Host)
         && Port > 0
@@ -54,6 +58,8 @@ internal sealed class RailwayPostgresDatabaseDetails
                 ? string.Empty
                 : RailwayPostgresConnectionString.WithDatabaseName(ProvisioningConnectionString, databaseName),
             LatestDeploymentStatus = LatestDeploymentStatus,
+            LatestDeploymentStopped = LatestDeploymentStopped,
+            LatestDeploymentQueuedReason = LatestDeploymentQueuedReason,
         };
     }
 }

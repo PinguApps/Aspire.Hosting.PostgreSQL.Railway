@@ -52,7 +52,7 @@ postgres.PublishToRailway(
 | `VCpus` | Service instance vCPU limit. |
 | `SharedMemoryBytes` | Service variable `RAILWAY_SHM_SIZE_BYTES` for container shared memory. This is not volume storage. |
 
-When `Region` changes, the deploy step updates Railway's service instance config and redeploys the PostgreSQL service if the latest deployment manifest is not already in that region.
+When `Region` is set for a new PostgreSQL service, the deploy step applies it before waiting for Railway readiness. For existing volume-backed PostgreSQL services, region changes are rejected because Railway must migrate the attached volume; migrate manually in Railway or create a new service instead.
 
 The package does not expose HTTP healthcheck settings or replica count for PostgreSQL. The Railway PostgreSQL template is a stateful database service, so SQL readiness checks and single-instance defaults are safer than HTTP healthchecks or horizontal replicas.
 

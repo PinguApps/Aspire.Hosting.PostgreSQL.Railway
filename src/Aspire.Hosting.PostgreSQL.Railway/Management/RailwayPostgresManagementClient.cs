@@ -64,6 +64,8 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
           serviceInstance(serviceId: $serviceId, environmentId: $environmentId) {
             latestDeployment {
               status
+              deploymentStopped
+              meta
             }
           }
           variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId)
@@ -282,6 +284,8 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             ConnectionString = connectionString,
             ProvisioningConnectionString = provisioningConnectionString,
             LatestDeploymentStatus = status,
+            LatestDeploymentStopped = data.ServiceInstance?.LatestDeployment?.DeploymentStopped,
+            LatestDeploymentQueuedReason = GetQueuedReason(data.ServiceInstance?.LatestDeployment?.Meta),
         };
     }
 
@@ -338,12 +342,20 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                 return service;
             }
 
+            if (IsTerminalUnsuccessfulDeployment(service))
+            {
+                throw new RailwayPostgresProviderException(
+                    RailwayPostgresProviderFailureKind.ProviderContract,
+                    statusCode: null,
+                    CreateDeploymentNotReadyMessage(serviceId, service, "stopped before becoming SUCCESS"));
+            }
+
             if (stopwatch.Elapsed >= pollingOptions.Timeout)
             {
                 throw new RailwayPostgresProviderException(
                     RailwayPostgresProviderFailureKind.ProviderContract,
                     statusCode: null,
-                    $"Railway PostgreSQL service '{serviceId}' did not expose PostgreSQL connection variables before the readiness timeout.");
+                    CreateReadinessTimeoutMessage(serviceId, service));
             }
 
             await Task.Delay(pollingOptions.Delay, cancellationToken).ConfigureAwait(false);
@@ -355,6 +367,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         string environmentId,
         string serviceId,
         RailwayPostgresDeploymentOptions options,
+        bool allowVolumeRegionMigration,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
@@ -364,12 +377,29 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
         options.Validate();
         string? requestedRegionId = null;
+        RailwayDeploymentManifestState? latestDeploymentManifest = null;
 
         if (options.HasServiceInstanceSettings)
         {
             requestedRegionId = options.Region is null
                 ? null
                 : await ResolveRegionIdAsync(options.Region.Value.ToRailwayIdentifier(), cancellationToken).ConfigureAwait(false);
+
+            if (requestedRegionId is not null)
+            {
+                latestDeploymentManifest = await GetLatestDeploymentManifestStateAsync(environmentId, serviceId, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (!allowVolumeRegionMigration
+                    && latestDeploymentManifest.HasVolumeMount
+                    && !latestDeploymentManifest.UsesRegion(requestedRegionId))
+                {
+                    throw new RailwayPostgresProviderException(
+                        RailwayPostgresProviderFailureKind.Validation,
+                        statusCode: null,
+                        $"Changing the Railway PostgreSQL region for existing service '{serviceId}' requires a Railway volume migration and is not performed automatically. Create a new Railway PostgreSQL service, or migrate the volume/region manually in Railway before deploying.");
+                }
+            }
 
             await SendAsync<UpdateServiceInstanceData>(
                 UpdateServiceInstanceMutation,
@@ -427,7 +457,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         }
 
         if (requestedRegionId is not null
-            && !await LatestDeploymentUsesRegionAsync(environmentId, serviceId, requestedRegionId, cancellationToken).ConfigureAwait(false))
+            && latestDeploymentManifest?.UsesRegion(requestedRegionId) != true)
         {
             await SendAsync<RedeployServiceInstanceData>(
                 RedeployServiceInstanceMutation,
@@ -689,10 +719,9 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         };
     }
 
-    private async Task<bool> LatestDeploymentUsesRegionAsync(
+    private async Task<RailwayDeploymentManifestState> GetLatestDeploymentManifestStateAsync(
         string environmentId,
         string serviceId,
-        string regionId,
         CancellationToken cancellationToken)
     {
         GetServiceInstanceDeploymentData data = await SendAsync<GetServiceInstanceDeploymentData>(
@@ -707,7 +736,8 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         JsonElement? meta = data.ServiceInstance?.LatestDeployment?.Meta;
 
         return meta is { ValueKind: JsonValueKind.Object }
-            && DeploymentManifestUsesRegion(meta.Value, regionId);
+            ? new RailwayDeploymentManifestState(meta.Value)
+            : RailwayDeploymentManifestState.Empty;
     }
 
     private static bool DeploymentManifestUsesRegion(JsonElement meta, string regionId)
@@ -728,6 +758,22 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         return deploy.TryGetProperty("multiRegionConfig", out JsonElement multiRegionConfig)
             && multiRegionConfig.ValueKind == JsonValueKind.Object
             && multiRegionConfig.TryGetProperty(regionId, out _);
+    }
+
+    private static bool DeploymentManifestHasVolumeMount(JsonElement meta)
+    {
+        if (meta.TryGetProperty("volumeMounts", out JsonElement volumeMounts)
+            && volumeMounts.ValueKind == JsonValueKind.Array
+            && volumeMounts.GetArrayLength() > 0)
+        {
+            return true;
+        }
+
+        return meta.TryGetProperty("serviceManifest", out JsonElement serviceManifest)
+            && serviceManifest.TryGetProperty("deploy", out JsonElement deploy)
+            && deploy.TryGetProperty("requiredMountPath", out JsonElement requiredMountPath)
+            && requiredMountPath.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(requiredMountPath.GetString());
     }
 
     private async Task<string> ResolveRegionIdAsync(string region, CancellationToken cancellationToken)
@@ -782,9 +828,63 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             $"Railway region '{region}' was not found or was ambiguous.");
     }
 
+    private static string? GetQueuedReason(JsonElement? meta)
+    {
+        return meta is { ValueKind: JsonValueKind.Object } metaValue
+            && metaValue.TryGetProperty("queuedReason", out JsonElement queuedReason)
+            && queuedReason.ValueKind == JsonValueKind.String
+            ? queuedReason.GetString()
+            : null;
+    }
+
     private static bool IsSuccessfulDeploymentStatus(string? status)
     {
         return string.Equals(status, "SUCCESS", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTerminalUnsuccessfulDeployment(RailwayPostgresDatabaseDetails service)
+    {
+        if (service.LatestDeploymentStopped == true
+            && !IsSuccessfulDeploymentStatus(service.LatestDeploymentStatus))
+        {
+            return true;
+        }
+
+        return service.LatestDeploymentStatus is not null
+            && (string.Equals(service.LatestDeploymentStatus, "FAILED", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(service.LatestDeploymentStatus, "CRASHED", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string CreateReadinessTimeoutMessage(
+        string serviceId,
+        RailwayPostgresDatabaseDetails? service)
+    {
+        if (service is null)
+        {
+            return $"Railway PostgreSQL service '{serviceId}' was not ready before the readiness timeout.";
+        }
+
+        if (!IsSuccessfulDeploymentStatus(service.LatestDeploymentStatus))
+        {
+            return CreateDeploymentNotReadyMessage(serviceId, service, "did not become SUCCESS before the readiness timeout");
+        }
+
+        return $"Railway PostgreSQL service '{serviceId}' latest deployment was SUCCESS but PostgreSQL connection variables were not exposed before the readiness timeout.";
+    }
+
+    private static string CreateDeploymentNotReadyMessage(
+        string serviceId,
+        RailwayPostgresDatabaseDetails service,
+        string reason)
+    {
+        string status = string.IsNullOrWhiteSpace(service.LatestDeploymentStatus)
+            ? "unknown"
+            : service.LatestDeploymentStatus;
+        string message = $"Railway PostgreSQL service '{serviceId}' latest deployment {reason}. Last status: {status}.";
+
+        return string.IsNullOrWhiteSpace(service.LatestDeploymentQueuedReason)
+            ? message
+            : $"{message} Queued reason: {service.LatestDeploymentQueuedReason}.";
     }
 
     private static string ToRailwayRestartPolicy(RailwayPostgresRestartPolicy restartPolicy)
@@ -1022,6 +1122,33 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     {
         public string? Status { get; set; }
 
+        public bool? DeploymentStopped { get; set; }
+
         public JsonElement Meta { get; set; }
+    }
+
+    private sealed class RailwayDeploymentManifestState
+    {
+        public static RailwayDeploymentManifestState Empty { get; } = new();
+
+        private readonly JsonElement? _meta;
+
+        private RailwayDeploymentManifestState()
+        {
+        }
+
+        public RailwayDeploymentManifestState(JsonElement meta)
+        {
+            _meta = meta;
+            HasVolumeMount = DeploymentManifestHasVolumeMount(meta);
+        }
+
+        public bool HasVolumeMount { get; }
+
+        public bool UsesRegion(string regionId)
+        {
+            return _meta is { ValueKind: JsonValueKind.Object } meta
+                && DeploymentManifestUsesRegion(meta, regionId);
+        }
     }
 }

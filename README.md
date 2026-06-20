@@ -142,7 +142,7 @@ If `railway-environment-id` is not a UUID, the deployment step resolves it by li
 | `VCpus` | Railway vCPU limit. |
 | `SharedMemoryBytes` | Sets Railway service variable `RAILWAY_SHM_SIZE_BYTES` for container shared memory. This is not volume storage. |
 
-When `Region` changes, the deploy step updates Railway's service instance config and redeploys the PostgreSQL service if the latest deployment manifest is not already in that region.
+When `Region` is set for a new PostgreSQL service, the deploy step applies it before waiting for Railway readiness. For existing volume-backed PostgreSQL services, region changes are rejected because Railway must migrate the attached volume; migrate manually in Railway or create a new service instead.
 
 Healthcheck path and replica count are intentionally not exposed for this PostgreSQL package. Railway healthchecks are HTTP based, while the PostgreSQL template exposes a database socket. Horizontal replicas of the default PostgreSQL template are not PostgreSQL HA/read replicas.
 

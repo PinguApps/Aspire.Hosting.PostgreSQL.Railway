@@ -248,6 +248,7 @@ internal static class RailwayPostgresDeploymentPipeline
                 deployment.EnvironmentId,
                 createResult.Database.ServiceId,
                 deployment.Options,
+                createResult.Created,
                 cancellationToken).ConfigureAwait(false);
 
             RailwayPostgresDatabaseDetails configuredDatabase = await client

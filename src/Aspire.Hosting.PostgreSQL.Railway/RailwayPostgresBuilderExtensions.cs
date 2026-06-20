@@ -146,7 +146,7 @@ public static class RailwayPostgresBuilderExtensions
                 $"railway-postgres-{builder.Resource.Name}",
                 context => RailwayPostgresDeploymentPipeline.ExecuteAsync(resource, context),
                 dependsOn: [WellKnownPipelineSteps.DeployPrereq],
-                requiredBy: [WellKnownPipelineSteps.Deploy],
+                requiredBy: [WellKnownPipelineSteps.PushPrereq],
                 tags: [WellKnownPipelineTags.ProvisionInfrastructure],
                 description: "Provision or reconcile the Railway PostgreSQL service.");
         }

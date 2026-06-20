@@ -283,15 +283,6 @@ public sealed class RailwayPostgresContractTests
             }
             """);
         handler.Enqueue(System.Net.HttpStatusCode.OK, """
-            { "data": { "serviceInstanceUpdate": true } }
-            """);
-        handler.Enqueue(System.Net.HttpStatusCode.OK, """
-            { "data": { "serviceInstanceLimitsUpdate": true } }
-            """);
-        handler.Enqueue(System.Net.HttpStatusCode.OK, """
-            { "data": { "variableUpsert": true } }
-            """);
-        handler.Enqueue(System.Net.HttpStatusCode.OK, """
             {
               "data": {
                 "serviceInstance": {
@@ -309,6 +300,15 @@ public sealed class RailwayPostgresContractTests
                 }
               }
             }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "serviceInstanceUpdate": true } }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "serviceInstanceLimitsUpdate": true } }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "variableUpsert": true } }
             """);
         handler.Enqueue(System.Net.HttpStatusCode.OK, """
             { "data": { "serviceInstanceRedeploy": true } }
@@ -330,12 +330,14 @@ public sealed class RailwayPostgresContractTests
                 VCpus = 1.5,
                 SharedMemoryBytes = 524288000,
             },
+            allowVolumeRegionMigration: false,
             CancellationToken.None);
 
         Assert.Equal(6, handler.Requests.Count);
         Assert.Contains("ListRailwayRegions", handler.Requests[0].Content, StringComparison.Ordinal);
+        Assert.Contains("GetRailwayServiceInstanceDeployment", handler.Requests[1].Content, StringComparison.Ordinal);
 
-        using JsonDocument serviceRequest = JsonDocument.Parse(handler.Requests[1].Content!);
+        using JsonDocument serviceRequest = JsonDocument.Parse(handler.Requests[2].Content!);
         JsonElement serviceVariables = serviceRequest.RootElement.GetProperty("variables");
         Assert.Equal("environment-id", serviceVariables.GetProperty("environmentId").GetString());
         Assert.Equal("svc_123", serviceVariables.GetProperty("serviceId").GetString());
@@ -351,14 +353,14 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("ON_FAILURE", serviceInput.GetProperty("restartPolicyType").GetString());
         Assert.Equal(7, serviceInput.GetProperty("restartPolicyMaxRetries").GetInt32());
 
-        using JsonDocument limitsRequest = JsonDocument.Parse(handler.Requests[2].Content!);
+        using JsonDocument limitsRequest = JsonDocument.Parse(handler.Requests[3].Content!);
         JsonElement limitsInput = limitsRequest.RootElement.GetProperty("variables").GetProperty("input");
         Assert.Equal("environment-id", limitsInput.GetProperty("environmentId").GetString());
         Assert.Equal("svc_123", limitsInput.GetProperty("serviceId").GetString());
         Assert.Equal(2, limitsInput.GetProperty("memoryGB").GetDouble());
         Assert.Equal(1.5, limitsInput.GetProperty("vCPUs").GetDouble());
 
-        using JsonDocument variableRequest = JsonDocument.Parse(handler.Requests[3].Content!);
+        using JsonDocument variableRequest = JsonDocument.Parse(handler.Requests[4].Content!);
         JsonElement variableInput = variableRequest.RootElement.GetProperty("variables").GetProperty("input");
         Assert.Equal("project-id", variableInput.GetProperty("projectId").GetString());
         Assert.Equal("environment-id", variableInput.GetProperty("environmentId").GetString());
@@ -367,8 +369,63 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("524288000", variableInput.GetProperty("value").GetString());
         Assert.False(variableInput.GetProperty("skipDeploys").GetBoolean());
 
-        Assert.Contains("GetRailwayServiceInstanceDeployment", handler.Requests[4].Content, StringComparison.Ordinal);
         Assert.Contains("RedeployRailwayPostgresServiceInstance", handler.Requests[5].Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ManagementClient_RejectsExistingVolumeBackedRegionChange()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "regions": [
+                  { "id": "ams", "name": "europe-west4-drams3a", "region": "Amsterdam" },
+                  { "id": "sin", "name": "asia-southeast1-eqsg3a", "region": "Singapore" }
+                ]
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "serviceInstance": {
+                  "latestDeployment": {
+                    "meta": {
+                      "volumeMounts": ["/var/lib/postgresql/data"],
+                      "serviceManifest": {
+                        "deploy": {
+                          "multiRegionConfig": {
+                            "ams": { "numReplicas": 1 }
+                          },
+                          "requiredMountPath": "/var/lib/postgresql/data"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        RailwayPostgresProviderException exception = await Assert.ThrowsAsync<RailwayPostgresProviderException>(() =>
+            client.ConfigureServiceAsync(
+                "project-id",
+                "environment-id",
+                "svc_123",
+                new RailwayPostgresDeploymentOptions
+                {
+                    Region = RailwayPostgresRegions.SoutheastAsiaMetal,
+                },
+                allowVolumeRegionMigration: false,
+                CancellationToken.None));
+
+        Assert.Equal(RailwayPostgresProviderFailureKind.Validation, exception.FailureKind);
+        Assert.Contains("volume migration", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(2, handler.Requests.Count);
     }
 
     [Fact]
@@ -522,6 +579,47 @@ public sealed class RailwayPostgresContractTests
 
         Assert.Equal("SUCCESS", service.LatestDeploymentStatus);
         Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task ManagementClient_ReadinessTimeoutReportsDeploymentStatusWhenVariablesExist()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "status": "QUEUED", "meta": { "queuedReason": "Waiting for previous deployment" } } },
+                "variables": {
+                  "PGHOST": "postgres.railway.internal",
+                  "PGPORT": "5432",
+                  "PGUSER": "postgres",
+                  "PGPASSWORD": "postgres-password",
+                  "PGDATABASE": "railway",
+                  "DATABASE_PUBLIC_URL": "postgresql://postgres:postgres-password@shortline.proxy.rlwy.net:27543/railway"
+                }
+              }
+            }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        RailwayPostgresProviderException exception = await Assert.ThrowsAsync<RailwayPostgresProviderException>(() =>
+            client.WaitUntilReadyAsync(
+                "project-id",
+                "environment-id",
+                "svc_123",
+                new RailwayPostgresReadinessPollingOptions
+                {
+                    Timeout = TimeSpan.Zero,
+                    Delay = TimeSpan.FromMilliseconds(1),
+                },
+                CancellationToken.None));
+
+        Assert.Contains("latest deployment did not become SUCCESS", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("QUEUED", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Waiting for previous deployment", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -807,9 +905,11 @@ public sealed class RailwayPostgresContractTests
             string environmentId,
             string serviceId,
             RailwayPostgresDeploymentOptions options,
+            bool allowVolumeRegionMigration,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            _ = allowVolumeRegionMigration;
 
             ConfiguredProjectId = projectId;
             ConfiguredEnvironmentId = environmentId;

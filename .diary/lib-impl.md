@@ -1,7 +1,7 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: deployment options are implemented and live-verified via the temp Azure/Railway app; `Region` is now a typed enum.
-- Open questions/risks: HTTP healthcheck path and replica count remain intentionally unsupported for PostgreSQL semantics.
+- Current plan: deployment options are implemented; existing volume-backed region changes are now blocked before Railway migration.
+- Open questions/risks: Railway may take longer than Aspire's readiness window when a manual/UI volume migration is already in progress.
 - Next actions: package/release review when ready.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
@@ -61,3 +61,8 @@
   - Why: `SharedMemoryBytes` could be confused with Railway volume storage.
   - Change: documented that it sets `RAILWAY_SHM_SIZE_BYTES` for container shared memory, not volume size (files: `README.md`, `docs/configuration.md`)
   - Notes: package tests passed 16/16.
+### 2026-06-20 15:56 +01:00 (pingu/lib-impl)
+- Guard Railway Postgres region migrations [infra] (impact: high)
+  - Why: changing an existing volume-backed DB to Singapore triggered Railway volume migration, queued/stopped deployments, and empty logs before container start.
+  - Change: block automatic region changes for existing volume-backed services, report Railway deployment status/queued reason on readiness failure, and require Railway outputs before Azure push prereq (files: `RailwayPostgresManagementClient.cs`, `RailwayPostgresBuilderExtensions.cs`, `RailwayPostgresContractTests.cs`, `README.md`, `docs/configuration.md` | cmds: `dotnet test`, temp `deploy-local.ps1`)
+  - Notes: temp deploy succeeded 26/26; `/postgres` returned 200 against `app-railway-manual-pinguapps.azurewebsites.net`.
