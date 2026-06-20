@@ -106,7 +106,7 @@ public sealed class RailwayPostgresContractTests
 
         RailwayPostgresOutputs outputs = postgres.Resource.GetRailwayPostgresOutputs();
         Assert.Equal("svc_123", await outputs.ServiceId.GetValueAsync(CancellationToken.None));
-        Assert.Equal("postgres.railway.internal", await outputs.Host.GetValueAsync(CancellationToken.None));
+        Assert.Equal("shortline.proxy.rlwy.net", await outputs.Host.GetValueAsync(CancellationToken.None));
         Assert.True(RailwayPostgresOutputs.IsSecret(outputs.Password.Name));
         Assert.True(RailwayPostgresOutputs.IsSecret(outputs.ConnectionString.Name));
     }
@@ -289,7 +289,8 @@ public sealed class RailwayPostgresContractTests
             CancellationToken.None);
 
         Assert.True(service.HasConnectionVariables);
-        Assert.Equal("postgres.railway.internal", service.Host);
+        Assert.Equal("shortline.proxy.rlwy.net", service.Host);
+        Assert.Equal(27543, service.Port);
         Assert.Equal(2, handler.Requests.Count);
     }
 
@@ -376,8 +377,8 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("orders-postgres", service.ServiceName);
         NpgsqlConnectionStringBuilder appConnectionString = new(service.ConnectionString);
         NpgsqlConnectionStringBuilder provisioningConnectionString = new(service.ProvisioningConnectionString);
-        Assert.Equal("postgres.railway.internal", appConnectionString.Host);
-        Assert.Equal(5432, appConnectionString.Port);
+        Assert.Equal("shortline.proxy.rlwy.net", appConnectionString.Host);
+        Assert.Equal(27543, appConnectionString.Port);
         Assert.Equal("railway", appConnectionString.Database);
         Assert.Equal("shortline.proxy.rlwy.net", provisioningConnectionString.Host);
         Assert.Equal(27543, provisioningConnectionString.Port);
@@ -439,14 +440,14 @@ public sealed class RailwayPostgresContractTests
             ServiceName = "orders-postgres",
             ProjectId = "project-id",
             EnvironmentId = "environment-id",
-            Host = "postgres.railway.internal",
-            Port = 5432,
+            Host = "shortline.proxy.rlwy.net",
+            Port = 27543,
             UserName = "postgres",
             Password = "postgres-password",
             DatabaseName = databaseName,
             ConnectionString = RailwayPostgresConnectionString.Create(
-                "postgres.railway.internal",
-                5432,
+                "shortline.proxy.rlwy.net",
+                27543,
                 "postgres",
                 "postgres-password",
                 databaseName),

@@ -211,13 +211,15 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
         IReadOnlyDictionary<string, string> variables = ParseVariables(data.Variables);
         string? status = data.ServiceInstance?.LatestDeployment?.Status;
-        string host = GetVariableOrEmpty(variables, "PGHOST");
-        int port = ParsePort(GetVariableOrEmpty(variables, "PGPORT"), service.Id);
-        string userName = GetVariableOrEmpty(variables, "PGUSER");
-        string password = GetVariableOrEmpty(variables, "PGPASSWORD");
-        string databaseName = GetVariableOrEmpty(variables, "PGDATABASE");
+        string privateHost = GetVariableOrEmpty(variables, "PGHOST");
+        int privatePort = ParsePort(GetVariableOrEmpty(variables, "PGPORT"), service.Id);
+        string privateUserName = GetVariableOrEmpty(variables, "PGUSER");
+        string privatePassword = GetVariableOrEmpty(variables, "PGPASSWORD");
+        string privateDatabaseName = GetVariableOrEmpty(variables, "PGDATABASE");
         string publicDatabaseUrl = GetVariableOrEmpty(variables, "DATABASE_PUBLIC_URL");
-        string connectionString = CreateConnectionStringOrEmpty(host, port, userName, password, databaseName);
+        RailwayPostgresConnectionDetails? publicConnection = CreatePublicConnectionDetailsOrNull(publicDatabaseUrl);
+        string connectionString = publicConnection?.ConnectionString
+            ?? CreateConnectionStringOrEmpty(privateHost, privatePort, privateUserName, privatePassword, privateDatabaseName);
         string provisioningConnectionString = CreateProvisioningConnectionStringOrEmpty(
             publicDatabaseUrl,
             connectionString);
@@ -228,11 +230,11 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             ServiceName = service.Name,
             ProjectId = projectId,
             EnvironmentId = environmentId,
-            Host = host,
-            Port = port,
-            UserName = userName,
-            Password = password,
-            DatabaseName = databaseName,
+            Host = publicConnection?.Host ?? privateHost,
+            Port = publicConnection?.Port ?? privatePort,
+            UserName = publicConnection?.UserName ?? privateUserName,
+            Password = publicConnection?.Password ?? privatePassword,
+            DatabaseName = publicConnection?.DatabaseName ?? privateDatabaseName,
             ConnectionString = connectionString,
             ProvisioningConnectionString = provisioningConnectionString,
             LatestDeploymentStatus = status,
@@ -583,6 +585,13 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         return string.IsNullOrWhiteSpace(connectionString)
             ? string.Empty
             : connectionString;
+    }
+
+    private static RailwayPostgresConnectionDetails? CreatePublicConnectionDetailsOrNull(string publicDatabaseUrl)
+    {
+        return string.IsNullOrWhiteSpace(publicDatabaseUrl)
+            ? null
+            : RailwayPostgresConnectionString.CreateDetailsFromUri(publicDatabaseUrl);
     }
 
     private sealed class RailwayGraphQlRequest

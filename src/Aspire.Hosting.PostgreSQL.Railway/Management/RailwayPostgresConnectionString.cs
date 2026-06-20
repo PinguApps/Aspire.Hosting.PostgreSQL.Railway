@@ -32,6 +32,11 @@ internal static class RailwayPostgresConnectionString
 
     public static string CreateFromUri(string connectionUri)
     {
+        return CreateDetailsFromUri(connectionUri).ConnectionString;
+    }
+
+    public static RailwayPostgresConnectionDetails CreateDetailsFromUri(string connectionUri)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionUri);
 
         if (!Uri.TryCreate(connectionUri, UriKind.Absolute, out Uri? uri)
@@ -55,12 +60,18 @@ internal static class RailwayPostgresConnectionString
 
         string databaseName = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/'));
 
-        return Create(
-            uri.IdnHost,
-            uri.Port > 0 ? uri.Port : 5432,
-            Uri.UnescapeDataString(userInfo[0]),
-            Uri.UnescapeDataString(userInfo[1]),
-            databaseName);
+        string host = uri.IdnHost;
+        int port = uri.Port > 0 ? uri.Port : 5432;
+        string userName = Uri.UnescapeDataString(userInfo[0]);
+        string password = Uri.UnescapeDataString(userInfo[1]);
+
+        return new RailwayPostgresConnectionDetails(
+            host,
+            port,
+            userName,
+            password,
+            databaseName,
+            Create(host, port, userName, password, databaseName));
     }
 
     public static string WithDatabaseName(string connectionString, string databaseName)
@@ -75,4 +86,35 @@ internal static class RailwayPostgresConnectionString
 
         return builder.ConnectionString;
     }
+}
+
+internal sealed class RailwayPostgresConnectionDetails
+{
+    public RailwayPostgresConnectionDetails(
+        string host,
+        int port,
+        string userName,
+        string password,
+        string databaseName,
+        string connectionString)
+    {
+        Host = host;
+        Port = port;
+        UserName = userName;
+        Password = password;
+        DatabaseName = databaseName;
+        ConnectionString = connectionString;
+    }
+
+    public string Host { get; }
+
+    public int Port { get; }
+
+    public string UserName { get; }
+
+    public string Password { get; }
+
+    public string DatabaseName { get; }
+
+    public string ConnectionString { get; }
 }
