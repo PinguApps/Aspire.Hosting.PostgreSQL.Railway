@@ -1,8 +1,8 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: deployment options are implemented; clean create and reuse deploys are live-verified.
+- Current plan: deployment options are implemented; clean create and reuse deploys are live-verified; empty `main` baseline exists on GitHub.
 - Open questions/risks: Aspire printed Azure hostname can differ from the actual stable App Service hostname in existing state.
-- Next actions: package/release review when ready.
+- Next actions: open PR from `pingu/lib-impl` into `main`; package/release review when ready.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
 ## Session log
@@ -76,3 +76,8 @@
   - Why: after `templateDeployV2`, Railway can list the new service before `serviceInstance(...)` exists, producing transient `ServiceInstance not found`.
   - Change: treat `ServiceInstance not found` as transient only inside created-service polling and added regression coverage (files: `RailwayPostgresManagementClient.cs`, `RailwayPostgresContractTests.cs` | cmds: `dotnet test`, temp `deploy-local.ps1`)
   - Notes: deleted service `35edcb5a-...`; clean create succeeded with `acbdabd2-...`, reuse deploy succeeded, Railway `SUCCESS` in `sin`, `/postgres` returned 200.
+### 2026-06-20 22:27 +01:00 (pingu/lib-impl)
+- Create empty main branch [repo] (impact: med)
+  - Why: GitHub repo only had `pingu/lib-impl`, blocking normal PR flow into `main`.
+  - Change: created local/remote `main` at empty root commit `9a9eb49` and set GitHub default branch to `main` (cmds: `git commit-tree`, `git update-ref`, `git push origin main`, `gh api ... default_branch=main`, `git remote set-head origin -a`)
+  - Notes: current worktree remains on `pingu/lib-impl`; next action is PR `pingu/lib-impl` -> `main`.
