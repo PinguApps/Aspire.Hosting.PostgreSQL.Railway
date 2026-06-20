@@ -1,8 +1,8 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: provider/deploy pipeline now resolves Railway environment names and waits for Railway PostgreSQL variables before emitting outputs.
+- Current plan: provider/deploy pipeline resolves Railway environment names, waits for variables, then retries child DB provisioning while Railway's public proxy warms up.
 - Open questions/risks: User still needs to rerun `aspire deploy` manually in the verification app; no deploy command was run by the agent.
-- Next actions: rerun manual app deploy; confirm Azure web app is created; open deployed `/postgres`; optionally inspect/clean the live `orders-postgres` Railway service when no longer needed.
+- Next actions: rerun manual app deploy; confirm Azure web app is created; open deployed `/postgres`; create/read a proof row.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
 ## Session log
@@ -26,3 +26,8 @@
   - Why: Railway template deploy can expose the service before `PGHOST`/connection variables exist; package threw on empty host before readiness polling.
   - Change: allow incomplete service details with empty connection strings, so `WaitUntilReadyAsync` polls until variables are populated; added regression coverage (files: `RailwayPostgresManagementClient.cs`, `RailwayPostgresContractTests.cs` | cmds: `dotnet test`, manual app `dotnet build`, manual app `dotnet test`)
   - Notes: committed `df94328`; Azure web app was absent because website provisioning failed after Railway outputs were missing.
+### 2026-06-20 11:47 +01:00 (pingu/lib-impl)
+- Retry Railway child database provisioning [infra] (impact: high)
+  - Why: clean Railway template deploy can publish variables before the public PostgreSQL proxy accepts Npgsql connections, causing `Exception while reading from stream`.
+  - Change: retry transient Npgsql/IO/timeout failures around child database creation and added regression coverage (files: `RailwayPostgresDatabaseProvisioner.cs`, `RailwayPostgresContractTests.cs` | cmds: `dotnet test tests\Aspire.Hosting.PostgreSQL.Railway\Aspire.Hosting.PostgreSQL.Railway.Tests.csproj -c Debug --no-restore`)
+  - Notes: committed `9beb4c3`; tests passed 12/12.
