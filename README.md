@@ -134,12 +134,14 @@ If `railway-environment-id` is not a UUID, the deployment step resolves it by li
 
 | Option | Purpose |
 | --- | --- |
-| `Region` | Railway region id. Use `RailwayPostgresRegions` constants or any valid Railway region id. |
+| `Region` | Railway region. Use `RailwayPostgresRegions` constants, Railway region names such as `europe-west4-drams3a`, or short ids such as `ams`. |
 | `RestartPolicy` | Railway restart policy: `Always`, `OnFailure`, or `Never`. |
 | `RestartPolicyMaxRetries` | Maximum Railway restart attempts. |
 | `MemoryGB` | Railway memory limit in GB. |
 | `VCpus` | Railway vCPU limit. |
 | `SharedMemoryBytes` | Sets Railway service variable `RAILWAY_SHM_SIZE_BYTES` for PostgreSQL shared memory. |
+
+When `Region` changes, the deploy step updates Railway's service instance config and redeploys the PostgreSQL service if the latest deployment manifest is not already in that region.
 
 Healthcheck path and replica count are intentionally not exposed for this PostgreSQL package. Railway healthchecks are HTTP based, while the PostgreSQL template exposes a database socket. Horizontal replicas of the default PostgreSQL template are not PostgreSQL HA/read replicas.
 

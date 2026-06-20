@@ -45,12 +45,14 @@ postgres.PublishToRailway(
 
 | Option | Railway setting |
 | --- | --- |
-| `Region` | Service instance region id. |
+| `Region` | Service instance region. Constants, Railway region names, and short ids are resolved during deploy. |
 | `RestartPolicy` | Service restart policy. |
 | `RestartPolicyMaxRetries` | Service restart retry limit. |
 | `MemoryGB` | Service instance memory limit in GB. |
 | `VCpus` | Service instance vCPU limit. |
 | `SharedMemoryBytes` | Service variable `RAILWAY_SHM_SIZE_BYTES`. |
+
+When `Region` changes, the deploy step updates Railway's service instance config and redeploys the PostgreSQL service if the latest deployment manifest is not already in that region.
 
 The package does not expose HTTP healthcheck settings or replica count for PostgreSQL. The Railway PostgreSQL template is a stateful database service, so SQL readiness checks and single-instance defaults are safer than HTTP healthchecks or horizontal replicas.
 

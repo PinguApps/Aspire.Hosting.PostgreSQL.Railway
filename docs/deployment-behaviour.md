@@ -11,9 +11,10 @@ During `aspire deploy`, the package:
 5. Creates a Railway PostgreSQL service from Railway's PostgreSQL template when needed.
 6. Waits for Railway connection variables.
 7. Reconciles configured Railway service settings, resource limits, and PostgreSQL shared memory.
-8. Creates missing Aspire child databases inside the Railway PostgreSQL service.
-9. Populates PostgreSQL connection strings and supplementary outputs.
-10. Saves the remote Railway service identity for repeated deploys.
+8. Redeploys the Railway PostgreSQL service when a requested region change is not already reflected by the latest Railway deployment manifest.
+9. Creates missing Aspire child databases inside the Railway PostgreSQL service.
+10. Populates PostgreSQL connection strings and supplementary outputs.
+11. Saves the remote Railway service identity for repeated deploys.
 
 The deploy step is named `railway-postgres-<resource-name>`.
 
