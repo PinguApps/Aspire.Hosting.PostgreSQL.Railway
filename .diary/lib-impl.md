@@ -1,8 +1,8 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: provider/deploy pipeline resolves Railway environment names, waits for variables, uses Railway public PostgreSQL proxy outputs, then retries child DB provisioning while the proxy warms up.
-- Open questions/risks: Existing deployments made before `dae5006` may still have private `railway.internal` app settings until redeployed; no deploy command was run by the agent.
-- Next actions: decide which Railway deployment options to expose; rerun manual app deploy to confirm generated Azure settings now use public proxy.
+- Current plan: deployment options are implemented and live-verified via the temp Azure/Railway app.
+- Open questions/risks: HTTP healthcheck path and replica count remain intentionally unsupported for PostgreSQL semantics.
+- Next actions: package/release review when ready.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
 ## Session log
@@ -41,3 +41,8 @@
   - Why: user asked what `RailwayPostgresDeploymentOptions` should contain.
   - Change: inspected current empty options class and Railway GraphQL schema fields for service instance settings/limits (cmds: `rg`, Railway GraphQL introspection)
   - Notes: candidate fields include region, healthcheck, restart policy, replica count, multi-region JSON, sleep/drain/overlap, and resource limits; PostgreSQL should be selective because template is stateful.
+### 2026-06-20 14:52 +01:00 (pingu/lib-impl)
+- Implement Railway deployment options [infra] (impact: high)
+  - Why: deploy-time PostgreSQL services need configurable region, restart policy, resource limits, and shared memory.
+  - Change: added options/DTO/docs/tests, Railway service config/limits/variable mutations, region-id resolution, guarded region redeploy, and readiness wait for successful deployment (files: `RailwayPostgresDeploymentOptions.cs`, `RailwayPostgresManagementClient.cs`, `RailwayPostgresContractTests.cs`, `README.md`, `docs/*`)
+  - Notes: commits `3a19aca`, `27416f4`, `2884197`, `3febf7d`, `60a5d3d`, `8618ffd`; tests passed 16/16 and temp live deploy verified `ams`, `ON_FAILURE`, retries `7`, CPU/memory, SHM.
