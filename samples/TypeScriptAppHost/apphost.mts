@@ -1,4 +1,8 @@
-import { createBuilder, railwayPostgresOwnershipMode } from "./.aspire/modules/aspire.mjs";
+import {
+  createBuilder,
+  RailwayPostgresRestartPolicy,
+  railwayPostgresOwnershipMode,
+} from "./.aspire/modules/aspire.mjs";
 
 const builder = await createBuilder();
 
@@ -10,6 +14,12 @@ const apiToken = await builder.addParameter("railway-api-token", { secret: true 
 let postgres = await builder.addPostgres("postgres");
 postgres = await postgres.publishToRailway(serviceName, projectId, environmentId, apiToken, {
   ownershipMode: railwayPostgresOwnershipMode.createOrAdopt,
+  region: "europe-west4-drams3a",
+  restartPolicy: RailwayPostgresRestartPolicy.OnFailure,
+  restartPolicyMaxRetries: 10,
+  memoryGB: 2,
+  vCpus: 1,
+  sharedMemoryBytes: 524288000,
 });
 
 const orders = await postgres.addDatabase("orders");

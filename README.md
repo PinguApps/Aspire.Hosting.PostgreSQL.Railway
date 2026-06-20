@@ -51,7 +51,16 @@ IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgre
         projectId,
         environmentId,
         apiToken,
-        RailwayPostgresOwnershipMode.CreateOrAdopt);
+        RailwayPostgresOwnershipMode.CreateOrAdopt,
+        options =>
+        {
+            options.Region = RailwayPostgresRegions.EuWestMetal;
+            options.RestartPolicy = RailwayPostgresRestartPolicy.OnFailure;
+            options.RestartPolicyMaxRetries = 10;
+            options.MemoryGB = 2;
+            options.VCpus = 1;
+            options.SharedMemoryBytes = 524288000;
+        });
 
 IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders");
 
@@ -65,7 +74,11 @@ builder.Build().Run();
 ## TypeScript Example
 
 ```ts
-import { createBuilder, railwayPostgresOwnershipMode } from "./.aspire/modules/aspire.mjs";
+import {
+  createBuilder,
+  RailwayPostgresRestartPolicy,
+  railwayPostgresOwnershipMode,
+} from "./.aspire/modules/aspire.mjs";
 
 const builder = await createBuilder();
 
@@ -77,6 +90,12 @@ const apiToken = await builder.addParameter("railway-api-token", { secret: true 
 let postgres = await builder.addPostgres("postgres");
 postgres = await postgres.publishToRailway(serviceName, projectId, environmentId, apiToken, {
   ownershipMode: railwayPostgresOwnershipMode.createOrAdopt,
+  region: "europe-west4-drams3a",
+  restartPolicy: RailwayPostgresRestartPolicy.OnFailure,
+  restartPolicyMaxRetries: 10,
+  memoryGB: 2,
+  vCpus: 1,
+  sharedMemoryBytes: 524288000,
 });
 
 const orders = await postgres.addDatabase("orders");
@@ -108,6 +127,21 @@ aspire deploy --non-interactive
 ```
 
 If `railway-environment-id` is not a UUID, the deployment step resolves it by listing environments in the configured Railway project before creating or adopting the PostgreSQL service.
+
+## Deployment Options
+
+`PublishToRailway` can also reconcile selected Railway service settings during deploy:
+
+| Option | Purpose |
+| --- | --- |
+| `Region` | Railway region id. Use `RailwayPostgresRegions` constants or any valid Railway region id. |
+| `RestartPolicy` | Railway restart policy: `Always`, `OnFailure`, or `Never`. |
+| `RestartPolicyMaxRetries` | Maximum Railway restart attempts. |
+| `MemoryGB` | Railway memory limit in GB. |
+| `VCpus` | Railway vCPU limit. |
+| `SharedMemoryBytes` | Sets Railway service variable `RAILWAY_SHM_SIZE_BYTES` for PostgreSQL shared memory. |
+
+Healthcheck path and replica count are intentionally not exposed for this PostgreSQL package. Railway healthchecks are HTTP based, while the PostgreSQL template exposes a database socket. Horizontal replicas of the default PostgreSQL template are not PostgreSQL HA/read replicas.
 
 ## Behaviour
 

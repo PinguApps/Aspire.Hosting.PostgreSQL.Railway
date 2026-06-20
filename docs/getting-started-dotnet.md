@@ -18,7 +18,16 @@ IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgre
         projectId,
         environmentId,
         apiToken,
-        RailwayPostgresOwnershipMode.CreateOrAdopt);
+        RailwayPostgresOwnershipMode.CreateOrAdopt,
+        options =>
+        {
+            options.Region = RailwayPostgresRegions.EuWestMetal;
+            options.RestartPolicy = RailwayPostgresRestartPolicy.OnFailure;
+            options.RestartPolicyMaxRetries = 10;
+            options.MemoryGB = 2;
+            options.VCpus = 1;
+            options.SharedMemoryBytes = 524288000;
+        });
 
 IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders");
 
