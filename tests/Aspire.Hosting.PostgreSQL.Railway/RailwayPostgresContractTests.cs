@@ -291,6 +291,28 @@ public sealed class RailwayPostgresContractTests
         handler.Enqueue(System.Net.HttpStatusCode.OK, """
             { "data": { "variableUpsert": true } }
             """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "serviceInstance": {
+                  "latestDeployment": {
+                    "meta": {
+                      "serviceManifest": {
+                        "deploy": {
+                          "multiRegionConfig": {
+                            "sfo": { "numReplicas": 1 }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "serviceInstanceRedeploy": true } }
+            """);
         RailwayPostgresManagementClient client = new(
             new HttpClient(handler),
             new RailwayPostgresManagementCredentials("management-secret"));
@@ -310,7 +332,7 @@ public sealed class RailwayPostgresContractTests
             },
             CancellationToken.None);
 
-        Assert.Equal(4, handler.Requests.Count);
+        Assert.Equal(6, handler.Requests.Count);
         Assert.Contains("ListRailwayRegions", handler.Requests[0].Content, StringComparison.Ordinal);
 
         using JsonDocument serviceRequest = JsonDocument.Parse(handler.Requests[1].Content!);
@@ -344,6 +366,9 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("RAILWAY_SHM_SIZE_BYTES", variableInput.GetProperty("name").GetString());
         Assert.Equal("524288000", variableInput.GetProperty("value").GetString());
         Assert.False(variableInput.GetProperty("skipDeploys").GetBoolean());
+
+        Assert.Contains("GetRailwayServiceInstanceDeployment", handler.Requests[4].Content, StringComparison.Ordinal);
+        Assert.Contains("RedeployRailwayPostgresServiceInstance", handler.Requests[5].Content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -441,6 +466,61 @@ public sealed class RailwayPostgresContractTests
         Assert.True(service.HasConnectionVariables);
         Assert.Equal("shortline.proxy.rlwy.net", service.Host);
         Assert.Equal(27543, service.Port);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task ManagementClient_WaitsWhenConnectionVariablesExistBeforeDeploymentSucceeds()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "status": "DEPLOYING" } },
+                "variables": {
+                  "PGHOST": "postgres.railway.internal",
+                  "PGPORT": "5432",
+                  "PGUSER": "postgres",
+                  "PGPASSWORD": "postgres-password",
+                  "PGDATABASE": "railway",
+                  "DATABASE_PUBLIC_URL": "postgresql://postgres:postgres-password@shortline.proxy.rlwy.net:27543/railway"
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "status": "SUCCESS" } },
+                "variables": {
+                  "PGHOST": "postgres.railway.internal",
+                  "PGPORT": "5432",
+                  "PGUSER": "postgres",
+                  "PGPASSWORD": "postgres-password",
+                  "PGDATABASE": "railway",
+                  "DATABASE_PUBLIC_URL": "postgresql://postgres:postgres-password@shortline.proxy.rlwy.net:27543/railway"
+                }
+              }
+            }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        RailwayPostgresDatabaseDetails service = await client.WaitUntilReadyAsync(
+            "project-id",
+            "environment-id",
+            "svc_123",
+            new RailwayPostgresReadinessPollingOptions
+            {
+                Timeout = TimeSpan.FromSeconds(5),
+                Delay = TimeSpan.FromMilliseconds(1),
+            },
+            CancellationToken.None);
+
+        Assert.Equal("SUCCESS", service.LatestDeploymentStatus);
         Assert.Equal(2, handler.Requests.Count);
     }
 

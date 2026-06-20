@@ -99,6 +99,22 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         }
         """;
 
+    private const string GetServiceInstanceDeploymentQuery = """
+        query GetRailwayServiceInstanceDeployment($environmentId: String!, $serviceId: String!) {
+          serviceInstance(serviceId: $serviceId, environmentId: $environmentId) {
+            latestDeployment {
+              meta
+            }
+          }
+        }
+        """;
+
+    private const string RedeployServiceInstanceMutation = """
+        mutation RedeployRailwayPostgresServiceInstance($environmentId: String!, $serviceId: String!) {
+          serviceInstanceRedeploy(environmentId: $environmentId, serviceId: $serviceId)
+        }
+        """;
+
     private const string UpsertVariableMutation = """
         mutation UpsertRailwayPostgresVariable($input: VariableUpsertInput!) {
           variableUpsert(input: $input)
@@ -317,7 +333,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         {
             RailwayPostgresDatabaseDetails service = await GetServiceAsync(projectId, environmentId, serviceId, cancellationToken).ConfigureAwait(false);
 
-            if (service.HasConnectionVariables)
+            if (service.HasConnectionVariables && IsSuccessfulDeploymentStatus(service.LatestDeploymentStatus))
             {
                 return service;
             }
@@ -347,10 +363,11 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         ArgumentNullException.ThrowIfNull(options);
 
         options.Validate();
+        string? requestedRegionId = null;
 
         if (options.HasServiceInstanceSettings)
         {
-            string? regionId = string.IsNullOrWhiteSpace(options.Region)
+            requestedRegionId = string.IsNullOrWhiteSpace(options.Region)
                 ? null
                 : await ResolveRegionIdAsync(options.Region, cancellationToken).ConfigureAwait(false);
 
@@ -362,8 +379,8 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                     serviceId,
                     input = new
                     {
-                        region = regionId,
-                        multiRegionConfig = CreateMultiRegionConfigOrNull(regionId),
+                        region = requestedRegionId,
+                        multiRegionConfig = CreateMultiRegionConfigOrNull(requestedRegionId),
                         restartPolicyType = options.RestartPolicy is null
                             ? null
                             : ToRailwayRestartPolicy(options.RestartPolicy.Value),
@@ -405,6 +422,19 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                         value = sharedMemoryBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         skipDeploys = false,
                     },
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        if (requestedRegionId is not null
+            && !await LatestDeploymentUsesRegionAsync(environmentId, serviceId, requestedRegionId, cancellationToken).ConfigureAwait(false))
+        {
+            await SendAsync<RedeployServiceInstanceData>(
+                RedeployServiceInstanceMutation,
+                new
+                {
+                    environmentId,
+                    serviceId,
                 },
                 cancellationToken).ConfigureAwait(false);
         }
@@ -659,6 +689,47 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         };
     }
 
+    private async Task<bool> LatestDeploymentUsesRegionAsync(
+        string environmentId,
+        string serviceId,
+        string regionId,
+        CancellationToken cancellationToken)
+    {
+        GetServiceInstanceDeploymentData data = await SendAsync<GetServiceInstanceDeploymentData>(
+            GetServiceInstanceDeploymentQuery,
+            new
+            {
+                environmentId,
+                serviceId,
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        JsonElement? meta = data.ServiceInstance?.LatestDeployment?.Meta;
+
+        return meta is { ValueKind: JsonValueKind.Object }
+            && DeploymentManifestUsesRegion(meta.Value, regionId);
+    }
+
+    private static bool DeploymentManifestUsesRegion(JsonElement meta, string regionId)
+    {
+        if (!meta.TryGetProperty("serviceManifest", out JsonElement serviceManifest)
+            || !serviceManifest.TryGetProperty("deploy", out JsonElement deploy))
+        {
+            return false;
+        }
+
+        if (deploy.TryGetProperty("region", out JsonElement region)
+            && region.ValueKind == JsonValueKind.String
+            && string.Equals(region.GetString(), regionId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return deploy.TryGetProperty("multiRegionConfig", out JsonElement multiRegionConfig)
+            && multiRegionConfig.ValueKind == JsonValueKind.Object
+            && multiRegionConfig.TryGetProperty(regionId, out _);
+    }
+
     private async Task<string> ResolveRegionIdAsync(string region, CancellationToken cancellationToken)
     {
         ListRegionsData data = await SendAsync<ListRegionsData>(
@@ -709,6 +780,11 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             RailwayPostgresProviderFailureKind.Validation,
             statusCode: null,
             $"Railway region '{region}' was not found or was ambiguous.");
+    }
+
+    private static bool IsSuccessfulDeploymentStatus(string? status)
+    {
+        return string.Equals(status, "SUCCESS", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ToRailwayRestartPolicy(RailwayPostgresRestartPolicy restartPolicy)
@@ -863,6 +939,16 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         public bool ServiceInstanceLimitsUpdate { get; set; }
     }
 
+    private sealed class GetServiceInstanceDeploymentData
+    {
+        public RailwayServiceInstance? ServiceInstance { get; set; }
+    }
+
+    private sealed class RedeployServiceInstanceData
+    {
+        public bool ServiceInstanceRedeploy { get; set; }
+    }
+
     private sealed class UpsertVariableData
     {
         public bool VariableUpsert { get; set; }
@@ -935,5 +1021,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     private sealed class RailwayDeployment
     {
         public string? Status { get; set; }
+
+        public JsonElement Meta { get; set; }
     }
 }
