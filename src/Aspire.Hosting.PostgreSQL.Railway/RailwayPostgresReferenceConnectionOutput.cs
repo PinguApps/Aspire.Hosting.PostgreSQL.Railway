@@ -76,6 +76,13 @@ internal sealed class RailwayPostgresReferenceConnectionOutput : IResourceWithCo
         yield return new("Username", _outputs.UserName.AsReferenceExpression());
         yield return new("Password", _outputs.Password.AsReferenceExpression());
         yield return new("Database", DatabaseNameExpression);
+        yield return new("DatabaseName", DatabaseNameExpression);
+        yield return new(
+            "Uri",
+            ReferenceExpression.Create($"postgresql://{_outputs.UserName}:{_outputs.Password}@{_outputs.Host}:{_outputs.Port}/{DatabaseNameExpression}"));
+        yield return new(
+            "JdbcConnectionString",
+            ReferenceExpression.Create($"jdbc:postgresql://{_outputs.Host}:{_outputs.Port}/{DatabaseNameExpression}"));
     }
 
     private static string CreateDatabaseConnectionStringFragment(string databaseName)

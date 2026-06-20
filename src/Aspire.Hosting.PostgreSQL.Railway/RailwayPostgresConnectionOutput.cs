@@ -51,5 +51,18 @@ internal sealed class RailwayPostgresConnectionOutput : IResourceWithConnectionS
         yield return new("Username", ReferenceExpression.Create($"{UserName}"));
         yield return new("Password", ReferenceExpression.Create($"{Password}"));
         yield return new("Database", ReferenceExpression.Create($"{DatabaseName}"));
+        yield return new("DatabaseName", ReferenceExpression.Create($"{DatabaseName}"));
+        yield return new("Uri", ReferenceExpression.Create($"{CreateUri()}"));
+        yield return new("JdbcConnectionString", ReferenceExpression.Create($"{CreateJdbcConnectionString()}"));
+    }
+
+    private string CreateUri()
+    {
+        return $"postgresql://{Uri.EscapeDataString(UserName)}:{Uri.EscapeDataString(Password)}@{Host}:{Port.ToString(System.Globalization.CultureInfo.InvariantCulture)}/{Uri.EscapeDataString(DatabaseName)}";
+    }
+
+    private string CreateJdbcConnectionString()
+    {
+        return $"jdbc:postgresql://{Host}:{Port.ToString(System.Globalization.CultureInfo.InvariantCulture)}/{Uri.EscapeDataString(DatabaseName)}";
     }
 }

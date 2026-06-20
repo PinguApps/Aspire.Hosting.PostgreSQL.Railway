@@ -137,6 +137,41 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public void RailwayConnectionOutputs_PreserveAspirePostgresConnectionPropertyNames()
+    {
+        RailwayPostgresDatabaseDetails service = CreateServiceDetails(databaseName: "orders");
+        RailwayPostgresConnectionOutput concreteOutput = new(service);
+        Dictionary<string, ReferenceExpression> concreteProperties = concreteOutput
+            .GetConnectionProperties()
+            .ToDictionary(property => property.Key, property => property.Value);
+
+        Assert.Equal("orders", concreteProperties["Database"].ValueExpression);
+        Assert.Equal("orders", concreteProperties["DatabaseName"].ValueExpression);
+        Assert.Equal("postgresql://postgres:postgres-password@shortline.proxy.rlwy.net:27543/orders", concreteProperties["Uri"].ValueExpression);
+        Assert.Equal("jdbc:postgresql://shortline.proxy.rlwy.net:27543/orders", concreteProperties["JdbcConnectionString"].ValueExpression);
+
+        IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
+        IResourceBuilder<PostgresServerResource> postgres = app.AddPostgres("postgres")
+            .PublishToRailway(
+                "orders-postgres",
+                app.AddParameter("railway-project-id"),
+                app.AddParameter("railway-environment-id"),
+                app.AddParameter("railway-api-token", secret: true));
+        RailwayPostgresReferenceConnectionOutput referenceOutput =
+            RailwayPostgresReferenceConnectionOutput.ForDatabase(
+                postgres.Resource.GetRailwayPostgresOutputs(),
+                "orders");
+        Dictionary<string, ReferenceExpression> referenceProperties = referenceOutput
+            .GetConnectionProperties()
+            .ToDictionary(property => property.Key, property => property.Value);
+
+        Assert.Equal("orders", referenceProperties["Database"].ValueExpression);
+        Assert.Equal("orders", referenceProperties["DatabaseName"].ValueExpression);
+        Assert.Contains("postgresql://", referenceProperties["Uri"].ValueExpression, StringComparison.Ordinal);
+        Assert.Contains("jdbc:postgresql://", referenceProperties["JdbcConnectionString"].ValueExpression, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RailwayReferenceConnectionOutput_EscapesConnectionStringValues()
     {
         IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
