@@ -20,6 +20,9 @@ public sealed class RailwayPostgresOutputs
         Password = new(resource, RailwayPostgresOutputNames.Password, secret: true);
         DatabaseName = new(resource, RailwayPostgresOutputNames.DatabaseName);
         ConnectionString = new(resource, RailwayPostgresOutputNames.ConnectionString, secret: true);
+        UrlEscapedUserName = new(resource, RailwayPostgresOutputNames.UrlEscapedUserName);
+        UrlEscapedPassword = new(resource, RailwayPostgresOutputNames.UrlEscapedPassword, secret: true);
+        UrlEscapedDatabaseName = new(resource, RailwayPostgresOutputNames.UrlEscapedDatabaseName);
         Properties =
         [
             ServiceId,
@@ -53,6 +56,12 @@ public sealed class RailwayPostgresOutputs
     /// <summary>The deployed Railway PostgreSQL connection string.</summary>
     public RailwayPostgresOutputReference ConnectionString { get; }
 
+    internal RailwayPostgresOutputReference UrlEscapedUserName { get; }
+
+    internal RailwayPostgresOutputReference UrlEscapedPassword { get; }
+
+    internal RailwayPostgresOutputReference UrlEscapedDatabaseName { get; }
+
     /// <summary>The stable supplementary output references.</summary>
     [AspireExportIgnore(Reason = "TypeScript AppHosts consume named output properties directly.")]
     public IReadOnlyList<RailwayPostgresOutputReference> Properties { get; }
@@ -64,7 +73,8 @@ public sealed class RailwayPostgresOutputs
         ArgumentNullException.ThrowIfNull(outputName);
 
         return string.Equals(outputName, RailwayPostgresOutputNames.Password, StringComparison.Ordinal)
-            || string.Equals(outputName, RailwayPostgresOutputNames.ConnectionString, StringComparison.Ordinal);
+            || string.Equals(outputName, RailwayPostgresOutputNames.ConnectionString, StringComparison.Ordinal)
+            || string.Equals(outputName, RailwayPostgresOutputNames.UrlEscapedPassword, StringComparison.Ordinal);
     }
 
     internal void Populate(RailwayPostgresDatabaseDetails database)
@@ -78,5 +88,8 @@ public sealed class RailwayPostgresOutputs
         Password.SetValue(database.Password);
         DatabaseName.SetValue(database.DatabaseName);
         ConnectionString.SetValue(database.ConnectionString);
+        UrlEscapedUserName.SetValue(Uri.EscapeDataString(database.UserName));
+        UrlEscapedPassword.SetValue(Uri.EscapeDataString(database.Password));
+        UrlEscapedDatabaseName.SetValue(Uri.EscapeDataString(database.DatabaseName));
     }
 }

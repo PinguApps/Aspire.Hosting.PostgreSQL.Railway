@@ -12,16 +12,19 @@ internal sealed class RailwayPostgresReferenceConnectionOutput : IResourceWithCo
     private RailwayPostgresReferenceConnectionOutput(
         RailwayPostgresOutputs outputs,
         ReferenceExpression databaseNameExpression,
+        ReferenceExpression urlEscapedDatabaseNameExpression,
         ReferenceExpression connectionStringExpression,
         Func<CancellationToken, ValueTask<string?>> getConnectionStringAsync)
     {
         ArgumentNullException.ThrowIfNull(outputs);
         ArgumentNullException.ThrowIfNull(databaseNameExpression);
+        ArgumentNullException.ThrowIfNull(urlEscapedDatabaseNameExpression);
         ArgumentNullException.ThrowIfNull(connectionStringExpression);
         ArgumentNullException.ThrowIfNull(getConnectionStringAsync);
 
         _outputs = outputs;
         DatabaseNameExpression = databaseNameExpression;
+        UrlEscapedDatabaseNameExpression = urlEscapedDatabaseNameExpression;
         _getConnectionStringAsync = getConnectionStringAsync;
         ConnectionStringExpression = connectionStringExpression;
     }
@@ -32,6 +35,8 @@ internal sealed class RailwayPostgresReferenceConnectionOutput : IResourceWithCo
 
     public ReferenceExpression DatabaseNameExpression { get; }
 
+    public ReferenceExpression UrlEscapedDatabaseNameExpression { get; }
+
     public ReferenceExpression ConnectionStringExpression { get; }
 
     public static RailwayPostgresReferenceConnectionOutput ForServer(RailwayPostgresOutputs outputs)
@@ -41,6 +46,7 @@ internal sealed class RailwayPostgresReferenceConnectionOutput : IResourceWithCo
         return new(
             outputs,
             outputs.DatabaseName.AsReferenceExpression(),
+            outputs.UrlEscapedDatabaseName.AsReferenceExpression(),
             outputs.ConnectionString.AsReferenceExpression(),
             outputs.ConnectionString.GetValueAsync);
     }
@@ -53,6 +59,7 @@ internal sealed class RailwayPostgresReferenceConnectionOutput : IResourceWithCo
         return new(
             outputs,
             ReferenceExpression.Create($"{databaseName}"),
+            ReferenceExpression.Create($"{Uri.EscapeDataString(databaseName)}"),
             ReferenceExpression.Create($"{outputs.ConnectionString};{CreateDatabaseConnectionStringFragment(databaseName)}"),
             async cancellationToken =>
             {
@@ -79,10 +86,10 @@ internal sealed class RailwayPostgresReferenceConnectionOutput : IResourceWithCo
         yield return new("DatabaseName", DatabaseNameExpression);
         yield return new(
             "Uri",
-            ReferenceExpression.Create($"postgresql://{_outputs.UserName}:{_outputs.Password}@{_outputs.Host}:{_outputs.Port}/{DatabaseNameExpression}"));
+            ReferenceExpression.Create($"postgresql://{_outputs.UrlEscapedUserName}:{_outputs.UrlEscapedPassword}@{_outputs.Host}:{_outputs.Port}/{UrlEscapedDatabaseNameExpression}"));
         yield return new(
             "JdbcConnectionString",
-            ReferenceExpression.Create($"jdbc:postgresql://{_outputs.Host}:{_outputs.Port}/{DatabaseNameExpression}"));
+            ReferenceExpression.Create($"jdbc:postgresql://{_outputs.Host}:{_outputs.Port}/{UrlEscapedDatabaseNameExpression}"));
     }
 
     private static string CreateDatabaseConnectionStringFragment(string databaseName)

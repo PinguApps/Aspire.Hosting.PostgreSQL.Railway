@@ -25,4 +25,10 @@ public static class RailwayPostgresOutputNames
 
     /// <summary>The Railway PostgreSQL connection string.</summary>
     public const string ConnectionString = "ConnectionString";
+
+    internal const string UrlEscapedUserName = "UrlEscapedUserName";
+
+    internal const string UrlEscapedPassword = "UrlEscapedPassword";
+
+    internal const string UrlEscapedDatabaseName = "UrlEscapedDatabaseName";
 }

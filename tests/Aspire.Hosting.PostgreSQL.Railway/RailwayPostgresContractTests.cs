@@ -214,6 +214,23 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("orders;db", builder.Database);
         Assert.Contains("{postgres.outputs.ConnectionString}", referenceOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
         Assert.DoesNotContain("{postgres.outputs.Password}", referenceOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
+
+        RailwayPostgresReferenceConnectionOutput serverReferenceOutput =
+            RailwayPostgresReferenceConnectionOutput.ForServer(outputs);
+        Dictionary<string, ReferenceExpression> serverProperties = serverReferenceOutput
+            .GetConnectionProperties()
+            .ToDictionary(property => property.Key, property => property.Value);
+        Dictionary<string, ReferenceExpression> databaseProperties = referenceOutput
+            .GetConnectionProperties()
+            .ToDictionary(property => property.Key, property => property.Value);
+
+        Assert.Equal("post%3Bgres", await outputs.UrlEscapedUserName.GetValueAsync(CancellationToken.None));
+        Assert.Equal("postgres%3Bpassword%22value", await outputs.UrlEscapedPassword.GetValueAsync(CancellationToken.None));
+        Assert.Contains("{postgres.outputs.UrlEscapedUserName}", serverProperties["Uri"].ValueExpression, StringComparison.Ordinal);
+        Assert.Contains("{postgres.outputs.UrlEscapedPassword}", serverProperties["Uri"].ValueExpression, StringComparison.Ordinal);
+        Assert.Contains("{postgres.outputs.UrlEscapedDatabaseName}", serverProperties["Uri"].ValueExpression, StringComparison.Ordinal);
+        Assert.Contains("orders%3Bdb", databaseProperties["Uri"].ValueExpression, StringComparison.Ordinal);
+        Assert.Contains("orders%3Bdb", databaseProperties["JdbcConnectionString"].ValueExpression, StringComparison.Ordinal);
     }
 
     [Fact]
