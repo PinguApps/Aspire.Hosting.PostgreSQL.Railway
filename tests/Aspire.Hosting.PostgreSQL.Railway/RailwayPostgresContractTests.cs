@@ -80,6 +80,31 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    [Trait("Category", "live-railway")]
+    public async Task LiveRailwayManagementClient_ResolvesEnvironmentAndCanQueryServices()
+    {
+        using LiveRailwayTestSession session = new();
+        Assert.SkipUnless(
+            session.HasCredentials,
+            "RAILWAY_API_TOKEN, RAILWAY_PROJECT_ID, and RAILWAY_ENVIRONMENT_ID are required for live Railway tests.");
+
+        RailwayPostgresManagementClient client = session.CreateManagementClient();
+
+        string environmentId = await client.ResolveEnvironmentIdAsync(
+            session.ProjectId!,
+            session.EnvironmentId!,
+            CancellationToken.None);
+        RailwayPostgresDatabaseDetails? service = await client.FindServiceByNameAsync(
+            session.ProjectId!,
+            environmentId,
+            LiveRailwayTestSession.CreateDisposableDatabaseName("missing-postgres"),
+            CancellationToken.None);
+
+        Assert.False(string.IsNullOrWhiteSpace(environmentId));
+        Assert.Null(service);
+    }
+
+    [Fact]
     public async Task RailwayOutputs_PopulateServerAndChildDatabaseConnectionStrings()
     {
         IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
