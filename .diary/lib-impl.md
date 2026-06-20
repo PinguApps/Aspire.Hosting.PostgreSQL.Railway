@@ -2,7 +2,7 @@
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
 - Current plan: provider/deploy pipeline resolves Railway environment names, waits for variables, uses Railway public PostgreSQL proxy outputs, then retries child DB provisioning while the proxy warms up.
 - Open questions/risks: Existing deployments made before `dae5006` may still have private `railway.internal` app settings until redeployed; no deploy command was run by the agent.
-- Next actions: rerun manual app deploy to confirm generated Azure settings now use public proxy; open deployed `/postgres`; create/read a proof row.
+- Next actions: decide which Railway deployment options to expose; rerun manual app deploy to confirm generated Azure settings now use public proxy.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
 ## Session log
@@ -36,3 +36,8 @@
   - Why: Azure App Service received `railway-manual-postgres.railway.internal`, causing deployed `/postgres` to fail with `Name or service not known`.
   - Change: parse `DATABASE_PUBLIC_URL` into app-facing host/port/user/password/database outputs while retaining fallback behavior; tests assert public proxy output (files: `RailwayPostgresManagementClient.cs`, `RailwayPostgresConnectionString.cs`, `RailwayPostgresContractTests.cs` | cmds: `dotnet test tests\Aspire.Hosting.PostgreSQL.Railway\Aspire.Hosting.PostgreSQL.Railway.Tests.csproj -c Debug --no-restore`)
   - Notes: committed `dae5006`; tests passed 12/12.
+### 2026-06-20 12:24 +01:00 (pingu/lib-impl)
+- Investigate Railway deployment options [infra] (impact: low)
+  - Why: user asked what `RailwayPostgresDeploymentOptions` should contain.
+  - Change: inspected current empty options class and Railway GraphQL schema fields for service instance settings/limits (cmds: `rg`, Railway GraphQL introspection)
+  - Notes: candidate fields include region, healthcheck, restart policy, replica count, multi-region JSON, sleep/drain/overlap, and resource limits; PostgreSQL should be selective because template is stateful.
