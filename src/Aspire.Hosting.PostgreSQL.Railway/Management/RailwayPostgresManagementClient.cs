@@ -67,6 +67,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
           }
           serviceInstance(serviceId: $serviceId, environmentId: $environmentId) {
             latestDeployment {
+              id
               status
               deploymentStopped
               meta
@@ -300,6 +301,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             DatabaseName = publicConnection?.DatabaseName ?? privateDatabaseName,
             ConnectionString = connectionString,
             ProvisioningConnectionString = provisioningConnectionString,
+            LatestDeploymentId = data.ServiceInstance?.LatestDeployment?.Id,
             LatestDeploymentStatus = status,
             LatestDeploymentStopped = data.ServiceInstance?.LatestDeployment?.DeploymentStopped,
             LatestDeploymentQueuedReason = GetQueuedReason(data.ServiceInstance?.LatestDeployment?.Meta),
@@ -361,7 +363,9 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         {
             RailwayPostgresDatabaseDetails service = await GetServiceAsync(projectId, environmentId, serviceId, cancellationToken).ConfigureAwait(false);
 
-            if (service.HasConnectionVariables && IsSuccessfulDeploymentStatus(service.LatestDeploymentStatus))
+            if (service.HasConnectionVariables
+                && IsSuccessfulDeploymentStatus(service.LatestDeploymentStatus)
+                && IsExpectedDeployment(service, pollingOptions))
             {
                 return service;
             }
@@ -386,7 +390,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         }
     }
 
-    public async Task ConfigureServiceAsync(
+    public async Task<bool> ConfigureServiceAsync(
         string projectId,
         string environmentId,
         string serviceId,
@@ -400,6 +404,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         ArgumentNullException.ThrowIfNull(options);
 
         options.Validate();
+        bool deploymentQueued = false;
         string? requestedRegionId = null;
         RailwayDeploymentManifestState? latestDeploymentManifest = null;
 
@@ -478,6 +483,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                     },
                 },
                 cancellationToken).ConfigureAwait(false);
+            deploymentQueued = true;
         }
 
         if (requestedRegionId is not null
@@ -491,7 +497,10 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                     serviceId,
                 },
                 cancellationToken).ConfigureAwait(false);
+            deploymentQueued = true;
         }
+
+        return deploymentQueued;
     }
 
     private async Task<TData> SendAsync<TData>(
@@ -913,6 +922,14 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         return string.Equals(status, "SUCCESS", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsExpectedDeployment(
+        RailwayPostgresDatabaseDetails service,
+        RailwayPostgresReadinessPollingOptions pollingOptions)
+    {
+        return string.IsNullOrWhiteSpace(pollingOptions.PreviousDeploymentId)
+            || !string.Equals(service.LatestDeploymentId, pollingOptions.PreviousDeploymentId, StringComparison.Ordinal);
+    }
+
     private static bool IsTerminalUnsuccessfulDeployment(RailwayPostgresDatabaseDetails service)
     {
         return service.LatestDeploymentStatus is not null
@@ -1195,6 +1212,8 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
     private sealed class RailwayDeployment
     {
+        public string? Id { get; set; }
+
         public string? Status { get; set; }
 
         public bool? DeploymentStopped { get; set; }

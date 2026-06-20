@@ -24,6 +24,8 @@ internal sealed class RailwayPostgresDatabaseDetails
 
     public string ProvisioningConnectionString { get; init; } = string.Empty;
 
+    public string? LatestDeploymentId { get; init; }
+
     public string? LatestDeploymentStatus { get; init; }
 
     public bool? LatestDeploymentStopped { get; init; }
@@ -57,6 +59,7 @@ internal sealed class RailwayPostgresDatabaseDetails
             ProvisioningConnectionString = string.IsNullOrWhiteSpace(ProvisioningConnectionString)
                 ? string.Empty
                 : RailwayPostgresConnectionString.WithDatabaseName(ProvisioningConnectionString, databaseName),
+            LatestDeploymentId = LatestDeploymentId,
             LatestDeploymentStatus = LatestDeploymentStatus,
             LatestDeploymentStopped = LatestDeploymentStopped,
             LatestDeploymentQueuedReason = LatestDeploymentQueuedReason,

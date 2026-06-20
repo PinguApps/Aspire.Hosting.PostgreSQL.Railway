@@ -7,4 +7,6 @@ internal sealed class RailwayPostgresReadinessPollingOptions
     public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(2);
 
     public TimeSpan Delay { get; init; } = TimeSpan.FromSeconds(2);
+
+    public string? PreviousDeploymentId { get; init; }
 }

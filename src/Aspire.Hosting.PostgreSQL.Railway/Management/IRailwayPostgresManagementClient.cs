@@ -47,7 +47,7 @@ internal interface IRailwayPostgresManagementClient
         return Task.FromException<RailwayPostgresDatabaseDetails>(new NotSupportedException("The Railway PostgreSQL management client does not support readiness polling."));
     }
 
-    public Task ConfigureServiceAsync(
+    public Task<bool> ConfigureServiceAsync(
         string projectId,
         string environmentId,
         string serviceId,
@@ -55,6 +55,6 @@ internal interface IRailwayPostgresManagementClient
         bool allowVolumeRegionMigration,
         CancellationToken cancellationToken)
     {
-        return Task.FromException(new NotSupportedException("The Railway PostgreSQL management client does not support service configuration."));
+        return Task.FromException<bool>(new NotSupportedException("The Railway PostgreSQL management client does not support service configuration."));
     }
 }

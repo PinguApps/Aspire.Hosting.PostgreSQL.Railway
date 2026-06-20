@@ -271,7 +271,7 @@ internal static class RailwayPostgresDeploymentPipeline
                 deployment.ServiceName,
                 createResult.Database.ServiceId);
 
-            await client.ConfigureServiceAsync(
+            bool deploymentQueued = await client.ConfigureServiceAsync(
                 deployment.ProjectId,
                 deployment.EnvironmentId,
                 createResult.Database.ServiceId,
@@ -279,12 +279,19 @@ internal static class RailwayPostgresDeploymentPipeline
                 createResult.Created,
                 cancellationToken).ConfigureAwait(false);
 
+            RailwayPostgresReadinessPollingOptions pollingOptions = deploymentQueued
+                ? new RailwayPostgresReadinessPollingOptions
+                {
+                    PreviousDeploymentId = createResult.Database.LatestDeploymentId,
+                }
+                : RailwayPostgresReadinessPollingOptions.Default;
+
             RailwayPostgresDatabaseDetails configuredDatabase = await client
                 .WaitUntilReadyAsync(
                     deployment.ProjectId,
                     deployment.EnvironmentId,
                     createResult.Database.ServiceId,
-                    RailwayPostgresReadinessPollingOptions.Default,
+                    pollingOptions,
                     cancellationToken)
                 .ConfigureAwait(false);
 

@@ -339,6 +339,33 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task DeploymentPipeline_WaitsForDeploymentQueuedByRailwayOptions()
+    {
+        RailwayPostgresResolvedDeployment deployment = new(
+            "orders-postgres",
+            "project-id",
+            "environment-id",
+            RailwayPostgresOwnershipMode.CreateOnly,
+            new RailwayPostgresManagementCredentials("management-secret"),
+            new RailwayPostgresDeploymentOptions
+            {
+                SharedMemoryBytes = 268435456,
+            });
+        FakeManagementClient client = new(CreateServiceDetails(latestDeploymentId: "dep_before"))
+        {
+            ConfigurationQueuedDeployment = true,
+        };
+
+        await RailwayPostgresDeploymentPipeline.ExecuteAsync(
+            deployment,
+            client,
+            outputs: null,
+            CancellationToken.None);
+
+        Assert.Equal("dep_before", client.WaitedPollingOptions?.PreviousDeploymentId);
+    }
+
+    [Fact]
     public async Task DeploymentPipeline_SavesRemoteIdentityBeforePostCreateWork()
     {
         RailwayPostgresResolvedDeployment deployment = new(
@@ -933,6 +960,62 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task ManagementClient_IgnoresPreviousSuccessfulDeploymentWhenPollingAfterConfiguration()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "id": "dep_before", "status": "SUCCESS" } },
+                "variables": {
+                  "PGHOST": "postgres.railway.internal",
+                  "PGPORT": "5432",
+                  "PGUSER": "postgres",
+                  "PGPASSWORD": "postgres-password",
+                  "PGDATABASE": "railway",
+                  "DATABASE_PUBLIC_URL": "postgresql://postgres:postgres-password@shortline.proxy.rlwy.net:27543/railway"
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "id": "dep_after", "status": "SUCCESS" } },
+                "variables": {
+                  "PGHOST": "postgres.railway.internal",
+                  "PGPORT": "5432",
+                  "PGUSER": "postgres",
+                  "PGPASSWORD": "postgres-password",
+                  "PGDATABASE": "railway",
+                  "DATABASE_PUBLIC_URL": "postgresql://postgres:postgres-password@shortline.proxy.rlwy.net:27543/railway"
+                }
+              }
+            }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        RailwayPostgresDatabaseDetails service = await client.WaitUntilReadyAsync(
+            "project-id",
+            "environment-id",
+            "svc_123",
+            new RailwayPostgresReadinessPollingOptions
+            {
+                Timeout = TimeSpan.FromSeconds(5),
+                Delay = TimeSpan.FromMilliseconds(1),
+                PreviousDeploymentId = "dep_before",
+            },
+            CancellationToken.None);
+
+        Assert.Equal("dep_after", service.LatestDeploymentId);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
     public async Task ManagementClient_ReadinessTimeoutReportsDeploymentStatusWhenVariablesExist()
     {
         FakeHttpMessageHandler handler = new();
@@ -1129,7 +1212,8 @@ public sealed class RailwayPostgresContractTests
 
     private static RailwayPostgresDatabaseDetails CreateServiceDetails(
         string databaseName = "railway",
-        string serviceId = "svc_123")
+        string serviceId = "svc_123",
+        string? latestDeploymentId = null)
     {
         return new RailwayPostgresDatabaseDetails
         {
@@ -1154,6 +1238,7 @@ public sealed class RailwayPostgresContractTests
                 "postgres",
                 "postgres-password",
                 databaseName),
+            LatestDeploymentId = latestDeploymentId,
             LatestDeploymentStatus = "SUCCESS",
         };
     }
@@ -1171,6 +1256,8 @@ public sealed class RailwayPostgresContractTests
 
         public string? WaitedServiceId { get; private set; }
 
+        public RailwayPostgresReadinessPollingOptions? WaitedPollingOptions { get; private set; }
+
         public string? ResolvedEnvironmentId { get; init; }
 
         public string? EnvironmentIdForResolution { get; private set; }
@@ -1186,6 +1273,8 @@ public sealed class RailwayPostgresContractTests
         public string? ConfiguredServiceId { get; private set; }
 
         public RailwayPostgresDeploymentOptions? ConfiguredOptions { get; private set; }
+
+        public bool ConfigurationQueuedDeployment { get; init; }
 
         public Exception? ConfigureException { get; init; }
 
@@ -1249,13 +1338,13 @@ public sealed class RailwayPostgresContractTests
             cancellationToken.ThrowIfCancellationRequested();
             _ = projectId;
             WaitedEnvironmentId = environmentId;
-            _ = pollingOptions;
+            WaitedPollingOptions = pollingOptions;
             WaitedServiceId = serviceId;
 
             return Task.FromResult(_service);
         }
 
-        public Task ConfigureServiceAsync(
+        public Task<bool> ConfigureServiceAsync(
             string projectId,
             string environmentId,
             string serviceId,
@@ -1268,7 +1357,7 @@ public sealed class RailwayPostgresContractTests
 
             if (ConfigureException is not null)
             {
-                return Task.FromException(ConfigureException);
+                return Task.FromException<bool>(ConfigureException);
             }
 
             ConfiguredProjectId = projectId;
@@ -1276,7 +1365,7 @@ public sealed class RailwayPostgresContractTests
             ConfiguredServiceId = serviceId;
             ConfiguredOptions = new RailwayPostgresDeploymentOptions(options);
 
-            return Task.CompletedTask;
+            return Task.FromResult(ConfigurationQueuedDeployment);
         }
     }
 
