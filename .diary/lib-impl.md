@@ -1,8 +1,8 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: deployment options and TypeScript package fixture are aligned and verified; `pingu/lib-impl` PR targets empty `main`.
-- Open questions/risks: Aspire printed Azure hostname can differ from the actual stable App Service hostname in existing state.
-- Next actions: monitor PR checks; package/release review when ready.
+- Current plan: PR #1 review feedback addressed locally; waiting for user push/check rerun.
+- Open questions/risks: Review threads were replied to but intentionally not marked resolved.
+- Next actions: user push branch; monitor PR checks; package/release review when ready.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
 ## Session log
@@ -78,6 +78,11 @@
   - Notes: deleted service `35edcb5a-...`; clean create succeeded with `acbdabd2-...`, reuse deploy succeeded, Railway `SUCCESS` in `sin`, `/postgres` returned 200.
 ### 2026-06-20 22:27 +01:00 (pingu/lib-impl)
 - Create empty main branch [repo] (impact: med)
+### 2026-06-20 23:38 +01:00 (pingu/lib-impl)
+- Address PR #1 review comments [infra] (impact: high)
+  - Why: six unresolved review threads identified lifecycle, pagination, CI, local-run, TypeScript reference, and escaping defects.
+  - Change: committed fixes `5ab66fc`, `880522b`, `dce1a90`, `523cece`, `6bb697d`; replied to all six threads (files: pipeline, management client, workflow, reference extensions/output, tests)
+  - Notes: `dotnet test Aspire.Hosting.PostgreSQL.Railway.slnx -c Debug --no-restore` and `eng/Validate-TypeScriptAppHostPackage.ps1` passed; not pushed.
   - Why: GitHub repo only had `pingu/lib-impl`, blocking normal PR flow into `main`.
   - Change: created local/remote `main` at empty root commit `9a9eb49` and set GitHub default branch to `main` (cmds: `git commit-tree`, `git update-ref`, `git push origin main`, `gh api ... default_branch=main`, `git remote set-head origin -a`)
   - Notes: current worktree remains on `pingu/lib-impl`; next action is PR `pingu/lib-impl` -> `main`.
