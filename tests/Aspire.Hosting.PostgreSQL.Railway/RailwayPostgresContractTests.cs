@@ -112,6 +112,38 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public void PublishToRailway_CapturesDeploymentOptions()
+    {
+        IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
+        IResourceBuilder<PostgresServerResource> postgres = app.AddPostgres("postgres")
+            .PublishToRailway(
+                "orders-postgres",
+                app.AddParameter("railway-project-id"),
+                app.AddParameter("railway-environment-id"),
+                app.AddParameter("railway-api-token", secret: true),
+                configure: options =>
+                {
+                    options.Region = RailwayPostgresRegions.EuWestMetal;
+                    options.RestartPolicy = RailwayPostgresRestartPolicy.OnFailure;
+                    options.RestartPolicyMaxRetries = 3;
+                    options.MemoryGB = 2;
+                    options.VCpus = 1;
+                    options.SharedMemoryBytes = 524288000;
+                });
+
+        RailwayPostgresDeploymentOptions options = postgres.Resource.GetRailwayPostgresDeploymentState()
+            ?.Options
+            ?? throw new InvalidOperationException("Railway deployment state was not attached.");
+
+        Assert.Equal(RailwayPostgresRegions.EuWestMetal, options.Region);
+        Assert.Equal(RailwayPostgresRestartPolicy.OnFailure, options.RestartPolicy);
+        Assert.Equal(3, options.RestartPolicyMaxRetries);
+        Assert.Equal(2, options.MemoryGB);
+        Assert.Equal(1, options.VCpus);
+        Assert.Equal(524288000, options.SharedMemoryBytes);
+    }
+
+    [Fact]
     public async Task PublishToRailway_RedirectsChildDatabaseReferencesToRailwayOutputs()
     {
         IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
@@ -149,6 +181,46 @@ public sealed class RailwayPostgresContractTests
             Assert.IsType<RailwayPostgresReferenceConnectionOutput>(connectionString.Resource);
         Assert.Contains("{postgres.outputs.Host}", referencedOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
         Assert.Contains("Database=orders", referencedOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DeploymentPipeline_AppliesRailwayDeploymentOptions()
+    {
+        RailwayPostgresDeploymentOptions options = new()
+        {
+            Region = RailwayPostgresRegions.EuWestMetal,
+            RestartPolicy = RailwayPostgresRestartPolicy.Never,
+            RestartPolicyMaxRetries = 0,
+            MemoryGB = 1,
+            VCpus = 0.5,
+            SharedMemoryBytes = 268435456,
+        };
+        RailwayPostgresResolvedDeployment deployment = new(
+            "orders-postgres",
+            "project-id",
+            "environment-id",
+            RailwayPostgresOwnershipMode.CreateOnly,
+            new RailwayPostgresManagementCredentials("management-secret"),
+            options);
+        FakeManagementClient client = new(CreateServiceDetails());
+
+        RailwayPostgresDatabaseDetails? database = await RailwayPostgresDeploymentPipeline.ExecuteAsync(
+            deployment,
+            client,
+            outputs: null,
+            CancellationToken.None);
+
+        Assert.NotNull(database);
+        Assert.Equal("project-id", client.ConfiguredProjectId);
+        Assert.Equal("environment-id", client.ConfiguredEnvironmentId);
+        Assert.Equal("svc_123", client.ConfiguredServiceId);
+        Assert.NotNull(client.ConfiguredOptions);
+        Assert.Equal(RailwayPostgresRegions.EuWestMetal, client.ConfiguredOptions.Region);
+        Assert.Equal(RailwayPostgresRestartPolicy.Never, client.ConfiguredOptions.RestartPolicy);
+        Assert.Equal(0, client.ConfiguredOptions.RestartPolicyMaxRetries);
+        Assert.Equal(1, client.ConfiguredOptions.MemoryGB);
+        Assert.Equal(0.5, client.ConfiguredOptions.VCpus);
+        Assert.Equal(268435456, client.ConfiguredOptions.SharedMemoryBytes);
     }
 
     [Fact]
@@ -194,6 +266,66 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("environment-id", client.EnvironmentIdForFind);
         Assert.Equal("environment-id", client.CreatedRequest?.EnvironmentId);
         Assert.Equal("environment-id", client.WaitedEnvironmentId);
+    }
+
+    [Fact]
+    public async Task ManagementClient_ConfiguresRailwayServiceInstanceAndLimitsAndSharedMemory()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "serviceInstanceUpdate": true } }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "serviceInstanceLimitsUpdate": true } }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "variableUpsert": true } }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        await client.ConfigureServiceAsync(
+            "project-id",
+            "environment-id",
+            "svc_123",
+            new RailwayPostgresDeploymentOptions
+            {
+                Region = RailwayPostgresRegions.EuWestMetal,
+                RestartPolicy = RailwayPostgresRestartPolicy.OnFailure,
+                RestartPolicyMaxRetries = 7,
+                MemoryGB = 2,
+                VCpus = 1.5,
+                SharedMemoryBytes = 524288000,
+            },
+            CancellationToken.None);
+
+        Assert.Equal(3, handler.Requests.Count);
+
+        using JsonDocument serviceRequest = JsonDocument.Parse(handler.Requests[0].Content!);
+        JsonElement serviceVariables = serviceRequest.RootElement.GetProperty("variables");
+        Assert.Equal("environment-id", serviceVariables.GetProperty("environmentId").GetString());
+        Assert.Equal("svc_123", serviceVariables.GetProperty("serviceId").GetString());
+        JsonElement serviceInput = serviceVariables.GetProperty("input");
+        Assert.Equal(RailwayPostgresRegions.EuWestMetal, serviceInput.GetProperty("region").GetString());
+        Assert.Equal("ON_FAILURE", serviceInput.GetProperty("restartPolicyType").GetString());
+        Assert.Equal(7, serviceInput.GetProperty("restartPolicyMaxRetries").GetInt32());
+
+        using JsonDocument limitsRequest = JsonDocument.Parse(handler.Requests[1].Content!);
+        JsonElement limitsInput = limitsRequest.RootElement.GetProperty("variables").GetProperty("input");
+        Assert.Equal("environment-id", limitsInput.GetProperty("environmentId").GetString());
+        Assert.Equal("svc_123", limitsInput.GetProperty("serviceId").GetString());
+        Assert.Equal(2, limitsInput.GetProperty("memoryGB").GetDouble());
+        Assert.Equal(1.5, limitsInput.GetProperty("vCPUs").GetDouble());
+
+        using JsonDocument variableRequest = JsonDocument.Parse(handler.Requests[2].Content!);
+        JsonElement variableInput = variableRequest.RootElement.GetProperty("variables").GetProperty("input");
+        Assert.Equal("project-id", variableInput.GetProperty("projectId").GetString());
+        Assert.Equal("environment-id", variableInput.GetProperty("environmentId").GetString());
+        Assert.Equal("svc_123", variableInput.GetProperty("serviceId").GetString());
+        Assert.Equal("RAILWAY_SHM_SIZE_BYTES", variableInput.GetProperty("name").GetString());
+        Assert.Equal("524288000", variableInput.GetProperty("value").GetString());
+        Assert.False(variableInput.GetProperty("skipDeploys").GetBoolean());
     }
 
     [Fact]
@@ -420,6 +552,22 @@ public sealed class RailwayPostgresContractTests
 
         Assert.NotNull(typeof(RailwayPostgresDeploymentOptionsDto).GetCustomAttribute<AspireDtoAttribute>());
         Assert.Equal(RailwayPostgresOwnershipMode.CreateOrAdopt, new RailwayPostgresDeploymentOptionsDto().GetOwnershipMode());
+
+        RailwayPostgresDeploymentOptions dtoOptions = new RailwayPostgresDeploymentOptionsDto
+        {
+            Region = RailwayPostgresRegions.EuWestMetal,
+            RestartPolicy = RailwayPostgresRestartPolicy.Always,
+            RestartPolicyMaxRetries = 4,
+            MemoryGB = 3,
+            VCpus = 2,
+            SharedMemoryBytes = 134217728,
+        }.ToDeploymentOptions();
+        Assert.Equal(RailwayPostgresRegions.EuWestMetal, dtoOptions.Region);
+        Assert.Equal(RailwayPostgresRestartPolicy.Always, dtoOptions.RestartPolicy);
+        Assert.Equal(4, dtoOptions.RestartPolicyMaxRetries);
+        Assert.Equal(3, dtoOptions.MemoryGB);
+        Assert.Equal(2, dtoOptions.VCpus);
+        Assert.Equal(134217728, dtoOptions.SharedMemoryBytes);
     }
 
     private static RailwayPostgresResolvedDeployment CreateDeployment(RailwayPostgresOwnershipMode ownershipMode)
@@ -481,6 +629,14 @@ public sealed class RailwayPostgresContractTests
         public string? EnvironmentIdForFind { get; private set; }
 
         public string? WaitedEnvironmentId { get; private set; }
+
+        public string? ConfiguredProjectId { get; private set; }
+
+        public string? ConfiguredEnvironmentId { get; private set; }
+
+        public string? ConfiguredServiceId { get; private set; }
+
+        public RailwayPostgresDeploymentOptions? ConfiguredOptions { get; private set; }
 
         public Task<string> ResolveEnvironmentIdAsync(
             string projectId,
@@ -546,6 +702,23 @@ public sealed class RailwayPostgresContractTests
             WaitedServiceId = serviceId;
 
             return Task.FromResult(_service);
+        }
+
+        public Task ConfigureServiceAsync(
+            string projectId,
+            string environmentId,
+            string serviceId,
+            RailwayPostgresDeploymentOptions options,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            ConfiguredProjectId = projectId;
+            ConfiguredEnvironmentId = environmentId;
+            ConfiguredServiceId = serviceId;
+            ConfiguredOptions = new RailwayPostgresDeploymentOptions(options);
+
+            return Task.CompletedTask;
         }
     }
 }

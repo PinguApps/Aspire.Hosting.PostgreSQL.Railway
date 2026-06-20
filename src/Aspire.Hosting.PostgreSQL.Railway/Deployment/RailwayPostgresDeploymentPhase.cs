@@ -5,5 +5,6 @@ internal enum RailwayPostgresDeploymentPhase
     ResolvingConfiguration,
     LocatingDatabase,
     CreatingDatabase,
+    ConfiguringService,
     RetrievingOutputs,
 }

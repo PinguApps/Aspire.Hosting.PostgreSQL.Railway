@@ -77,6 +77,24 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         }
         """;
 
+    private const string UpdateServiceInstanceMutation = """
+        mutation UpdateRailwayPostgresServiceInstance($environmentId: String!, $serviceId: String!, $input: ServiceInstanceUpdateInput!) {
+          serviceInstanceUpdate(environmentId: $environmentId, serviceId: $serviceId, input: $input)
+        }
+        """;
+
+    private const string UpdateServiceInstanceLimitsMutation = """
+        mutation UpdateRailwayPostgresServiceInstanceLimits($input: ServiceInstanceLimitsUpdateInput!) {
+          serviceInstanceLimitsUpdate(input: $input)
+        }
+        """;
+
+    private const string UpsertVariableMutation = """
+        mutation UpsertRailwayPostgresVariable($input: VariableUpsertInput!) {
+          variableUpsert(input: $input)
+        }
+        """;
+
     private readonly HttpClient _httpClient;
     private readonly RailwayPostgresManagementCredentials _credentials;
 
@@ -303,6 +321,77 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             }
 
             await Task.Delay(pollingOptions.Delay, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    public async Task ConfigureServiceAsync(
+        string projectId,
+        string environmentId,
+        string serviceId,
+        RailwayPostgresDeploymentOptions options,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
+        ArgumentNullException.ThrowIfNull(options);
+
+        options.Validate();
+
+        if (options.HasServiceInstanceSettings)
+        {
+            await SendAsync<UpdateServiceInstanceData>(
+                UpdateServiceInstanceMutation,
+                new
+                {
+                    environmentId,
+                    serviceId,
+                    input = new
+                    {
+                        region = EmptyToNull(options.Region),
+                        restartPolicyType = options.RestartPolicy is null
+                            ? null
+                            : ToRailwayRestartPolicy(options.RestartPolicy.Value),
+                        restartPolicyMaxRetries = options.RestartPolicyMaxRetries,
+                    },
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        if (options.HasResourceLimits)
+        {
+            await SendAsync<UpdateServiceInstanceLimitsData>(
+                UpdateServiceInstanceLimitsMutation,
+                new
+                {
+                    input = new
+                    {
+                        environmentId,
+                        serviceId,
+                        memoryGB = options.MemoryGB,
+                        vCPUs = options.VCpus,
+                    },
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        if (options.SharedMemoryBytes is long sharedMemoryBytes)
+        {
+            await SendAsync<UpsertVariableData>(
+                UpsertVariableMutation,
+                new
+                {
+                    input = new
+                    {
+                        projectId,
+                        environmentId,
+                        serviceId,
+                        name = "RAILWAY_SHM_SIZE_BYTES",
+                        value = sharedMemoryBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        skipDeploys = false,
+                    },
+                },
+                cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -539,6 +628,34 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         return variables.TryGetValue(name, out string? value) ? value : string.Empty;
     }
 
+    private static string? EmptyToNull(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static string ToRailwayRestartPolicy(RailwayPostgresRestartPolicy restartPolicy)
+    {
+        if (restartPolicy == RailwayPostgresRestartPolicy.Always)
+        {
+            return "ALWAYS";
+        }
+
+        if (restartPolicy == RailwayPostgresRestartPolicy.OnFailure)
+        {
+            return "ON_FAILURE";
+        }
+
+        if (restartPolicy == RailwayPostgresRestartPolicy.Never)
+        {
+            return "NEVER";
+        }
+
+        throw new RailwayPostgresProviderException(
+            RailwayPostgresProviderFailureKind.Validation,
+            statusCode: null,
+            $"Railway PostgreSQL restart policy '{restartPolicy}' is not supported.");
+    }
+
     private static int ParsePort(string value, string serviceId)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -642,6 +759,21 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     private sealed class DeployTemplateData
     {
         public RailwayTemplateDeployPayload TemplateDeployV2 { get; set; } = new();
+    }
+
+    private sealed class UpdateServiceInstanceData
+    {
+        public bool ServiceInstanceUpdate { get; set; }
+    }
+
+    private sealed class UpdateServiceInstanceLimitsData
+    {
+        public bool ServiceInstanceLimitsUpdate { get; set; }
+    }
+
+    private sealed class UpsertVariableData
+    {
+        public bool VariableUpsert { get; set; }
     }
 
     private sealed class RailwayTemplateDeployPayload

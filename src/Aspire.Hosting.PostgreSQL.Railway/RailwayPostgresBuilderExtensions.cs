@@ -110,6 +110,7 @@ public static class RailwayPostgresBuilderExtensions
 
             RailwayPostgresDeploymentOptions options = new();
             configure?.Invoke(options);
+            options.Validate();
 
             RemoveExistingRailwayPipelineStep(builder.Resource);
             global::Aspire.Hosting.ResourceBuilderExtensions.ExcludeFromManifest(builder);
@@ -188,6 +189,13 @@ public static class RailwayPostgresBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(target);
+
+        target.Region = source.Region;
+        target.RestartPolicy = source.RestartPolicy;
+        target.RestartPolicyMaxRetries = source.RestartPolicyMaxRetries;
+        target.MemoryGB = source.MemoryGB;
+        target.VCpus = source.VCpus;
+        target.SharedMemoryBytes = source.SharedMemoryBytes;
     }
 
     private static void RemoveExistingRailwayPipelineStep(PostgresServerResource resource)

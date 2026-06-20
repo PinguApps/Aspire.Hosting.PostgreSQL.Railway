@@ -233,6 +233,35 @@ internal static class RailwayPostgresDeploymentPipeline
                 .ExecuteAsync(deployment, ownership, cancellationToken)
                 .ConfigureAwait(false);
 
+        if (deployment.Options.HasAny)
+        {
+            Report(
+                progressReporter,
+                RailwayPostgresDeploymentPhase.ConfiguringService,
+                $"Configuring Railway PostgreSQL service '{deployment.ServiceName}'.",
+                resourceName,
+                deployment.ServiceName,
+                createResult.Database.ServiceId);
+
+            await client.ConfigureServiceAsync(
+                deployment.ProjectId,
+                deployment.EnvironmentId,
+                createResult.Database.ServiceId,
+                deployment.Options,
+                cancellationToken).ConfigureAwait(false);
+
+            RailwayPostgresDatabaseDetails configuredDatabase = await client
+                .WaitUntilReadyAsync(
+                    deployment.ProjectId,
+                    deployment.EnvironmentId,
+                    createResult.Database.ServiceId,
+                    RailwayPostgresReadinessPollingOptions.Default,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            createResult = new RailwayPostgresCreateFlowResult(configuredDatabase, createResult.Created);
+        }
+
         ReportCreatedOrAdopted(progressReporter, resourceName, deployment, createResult);
 
         Report(
@@ -275,7 +304,8 @@ internal static class RailwayPostgresDeploymentPipeline
             deployment.ProjectId,
             resolvedEnvironmentId,
             deployment.OwnershipMode,
-            deployment.ManagementCredentials);
+            deployment.ManagementCredentials,
+            deployment.Options);
     }
 
     private static void ReportOwnership(
