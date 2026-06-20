@@ -44,6 +44,14 @@ internal static class RailwayPostgresDeploymentPipeline
 
         IRailwayPostgresManagementClient client = context.Services.GetService<IRailwayPostgresManagementClient>()
             ?? new RailwayPostgresManagementClient(_managementHttpClient, deployment.ManagementCredentials);
+        deployment = await ResolveEnvironmentIdAsync(
+            deployment,
+            client,
+            progressReporter,
+            resource.Name,
+            context.CancellationToken)
+            .ConfigureAwait(false);
+
         RailwayPostgresRemoteIdentityDeploymentStateStore identityStore = new(
             context.Services.GetRequiredService<IDeploymentStateManager>());
         RailwayPostgresRemoteIdentityState? cachedIdentity =
@@ -167,6 +175,14 @@ internal static class RailwayPostgresDeploymentPipeline
         ArgumentNullException.ThrowIfNull(deployment);
         ArgumentNullException.ThrowIfNull(client);
 
+        deployment = await ResolveEnvironmentIdAsync(
+            deployment,
+            client,
+            progressReporter,
+            resourceName,
+            cancellationToken)
+            .ConfigureAwait(false);
+
         Report(
             progressReporter,
             RailwayPostgresDeploymentPhase.ResolvingConfiguration,
@@ -228,6 +244,38 @@ internal static class RailwayPostgresDeploymentPipeline
             createResult.Database.ServiceId);
 
         return createResult;
+    }
+
+    private static async Task<RailwayPostgresResolvedDeployment> ResolveEnvironmentIdAsync(
+        RailwayPostgresResolvedDeployment deployment,
+        IRailwayPostgresManagementClient client,
+        IRailwayPostgresDeploymentProgressReporter? progressReporter,
+        string? resourceName,
+        CancellationToken cancellationToken)
+    {
+        string resolvedEnvironmentId = await client
+            .ResolveEnvironmentIdAsync(deployment.ProjectId, deployment.EnvironmentId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (string.Equals(resolvedEnvironmentId, deployment.EnvironmentId, StringComparison.Ordinal))
+        {
+            return deployment;
+        }
+
+        Report(
+            progressReporter,
+            RailwayPostgresDeploymentPhase.ResolvingConfiguration,
+            $"Resolved Railway environment '{deployment.EnvironmentId}' to id '{resolvedEnvironmentId}'.",
+            resourceName,
+            deployment.ServiceName,
+            providerDatabaseId: null);
+
+        return new RailwayPostgresResolvedDeployment(
+            deployment.ServiceName,
+            deployment.ProjectId,
+            resolvedEnvironmentId,
+            deployment.OwnershipMode,
+            deployment.ManagementCredentials);
     }
 
     private static void ReportOwnership(

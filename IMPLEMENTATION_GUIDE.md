@@ -8,7 +8,7 @@
 - Local development should keep normal Aspire PostgreSQL behavior and must not call Railway.
 - Deploy behavior should be opt-in through a `PublishToRailway(...)` extension.
 - Ownership modes should match the Railway package shape: `CreateOnly`, `ExistingOnly`, `CreateOrAdopt`.
-- Railway deployment needs an existing project id, existing environment id, API token, and PostgreSQL service name.
+- Railway deployment needs an existing project id, existing environment id or exact environment name, API token, and PostgreSQL service name.
 - Railway PostgreSQL exposes `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, and `DATABASE_URL`.
 - Public contract choice: publish the `PostgresServerResource`; child `AddDatabase(...)` resources should be created inside the Railway PostgreSQL service during deploy.
 
@@ -16,6 +16,7 @@
 
 - Railway PostgreSQL docs: https://docs.railway.com/databases/postgresql
 - Railway Public API docs: https://docs.railway.com/integrations/api/api-cookbook
+- Railway environments API docs: https://docs.railway.com/integrations/api/manage-environments
 - Railway services API docs: https://docs.railway.com/integrations/api/manage-services
 - Railway variables API docs: https://docs.railway.com/integrations/api/manage-variables
 

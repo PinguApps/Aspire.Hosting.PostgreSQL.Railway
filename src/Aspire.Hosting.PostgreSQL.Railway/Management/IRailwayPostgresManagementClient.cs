@@ -2,6 +2,16 @@ namespace Aspire.Hosting.PostgreSQL.Railway.Management;
 
 internal interface IRailwayPostgresManagementClient
 {
+    public Task<string> ResolveEnvironmentIdAsync(
+        string projectId,
+        string environmentIdOrName,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return Task.FromResult(environmentIdOrName);
+    }
+
     public Task<RailwayPostgresDatabaseDetails?> FindServiceByNameAsync(
         string projectId,
         string environmentId,

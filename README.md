@@ -6,7 +6,7 @@
 - Deploy behaviour: opt-in Railway PostgreSQL create/adopt flow
 - Resource of record: `PostgresServerResource`
 - Child databases: `postgres.AddDatabase(...)` resources are created inside the Railway PostgreSQL service during deploy
-- Required Railway inputs: service name, project id, environment id, API token
+- Required Railway inputs: service name, project id, environment id/name, API token
 
 ## Install
 
@@ -94,7 +94,7 @@ await app.run();
 | --- | --- | --- |
 | `railway-postgres-service-name` | No | Railway service name and stable remote identity. |
 | `railway-project-id` | No | Existing Railway project id. |
-| `railway-environment-id` | No | Existing Railway environment id. |
+| `railway-environment-id` | No | Existing Railway environment id or exact environment name, for example `production`. |
 | `railway-api-token` | Yes | Railway API token used only by deployment infrastructure. |
 
 For non-interactive deploys:
@@ -106,6 +106,8 @@ $env:Parameters__railway_environment_id = $env:RAILWAY_ENVIRONMENT_ID
 $env:Parameters__railway_api_token = $env:RAILWAY_API_TOKEN
 aspire deploy --non-interactive
 ```
+
+If `railway-environment-id` is not a UUID, the deployment step resolves it by listing environments in the configured Railway project before creating or adopting the PostgreSQL service.
 
 ## Behaviour
 

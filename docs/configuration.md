@@ -6,7 +6,7 @@ Every `PublishToRailway` call needs:
 | --- | --- | --- |
 | `railway-postgres-service-name` | No | Railway service name and stable remote identity. |
 | `railway-project-id` | No | Railway project that will contain the PostgreSQL service. |
-| `railway-environment-id` | No | Railway environment for the service. |
+| `railway-environment-id` | No | Railway environment id or exact environment name for the service. |
 | `railway-api-token` | Yes | Railway API token for deployment. |
 
 ## Ownership Modes
@@ -18,6 +18,8 @@ Every `PublishToRailway` call needs:
 | `ExistingOnly` / `existingOnly` | Fail | Adopt |
 
 Use `CreateOrAdopt` for most apps. Use `ExistingOnly` when the Railway service is created outside Aspire.
+
+If `railway-environment-id` is a friendly name such as `production`, the deployment step resolves it to the Railway environment id before service lookup or creation.
 
 ## Child Databases
 

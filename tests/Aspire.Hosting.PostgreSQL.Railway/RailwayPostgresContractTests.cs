@@ -170,6 +170,81 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task DeploymentPipeline_ResolvesRailwayEnvironmentNameBeforeRemoteOperations()
+    {
+        RailwayPostgresResolvedDeployment deployment = new(
+            "orders-postgres",
+            "project-id",
+            "production",
+            RailwayPostgresOwnershipMode.CreateOnly,
+            new RailwayPostgresManagementCredentials("management-secret"));
+        FakeManagementClient client = new(CreateServiceDetails())
+        {
+            ResolvedEnvironmentId = "environment-id"
+        };
+
+        RailwayPostgresDatabaseDetails? database = await RailwayPostgresDeploymentPipeline.ExecuteAsync(
+            deployment,
+            client,
+            outputs: null,
+            CancellationToken.None);
+
+        Assert.NotNull(database);
+        Assert.Equal("production", client.EnvironmentIdForResolution);
+        Assert.Equal("environment-id", client.EnvironmentIdForFind);
+        Assert.Equal("environment-id", client.CreatedRequest?.EnvironmentId);
+        Assert.Equal("environment-id", client.WaitedEnvironmentId);
+    }
+
+    [Fact]
+    public async Task ManagementClient_ResolvesRailwayEnvironmentName()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "environments": {
+                  "edges": [
+                    { "node": { "id": "environment-id", "name": "production" } },
+                    { "node": { "id": "staging-id", "name": "staging" } }
+                  ]
+                }
+              }
+            }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        string environmentId = await client.ResolveEnvironmentIdAsync(
+            "project-id",
+            "production",
+            CancellationToken.None);
+
+        Assert.Equal("environment-id", environmentId);
+        CapturedHttpRequest request = Assert.Single(handler.Requests);
+        Assert.Contains("ListRailwayEnvironments", request.Content, StringComparison.Ordinal);
+        Assert.Contains("environments(projectId: $projectId)", request.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ManagementClient_DoesNotListRailwayEnvironmentsWhenEnvironmentValueIsAlreadyGuid()
+    {
+        FakeHttpMessageHandler handler = new();
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        string environmentId = await client.ResolveEnvironmentIdAsync(
+            "project-id",
+            "04dc0f90-a13d-4d6a-a8a5-a41240463ddd",
+            CancellationToken.None);
+
+        Assert.Equal("04dc0f90-a13d-4d6a-a8a5-a41240463ddd", environmentId);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
     public async Task ManagementClient_CreatesRailwayPostgresFromOfficialTemplate()
     {
         FakeHttpMessageHandler handler = new();
@@ -340,6 +415,26 @@ public sealed class RailwayPostgresContractTests
 
         public string? WaitedServiceId { get; private set; }
 
+        public string? ResolvedEnvironmentId { get; init; }
+
+        public string? EnvironmentIdForResolution { get; private set; }
+
+        public string? EnvironmentIdForFind { get; private set; }
+
+        public string? WaitedEnvironmentId { get; private set; }
+
+        public Task<string> ResolveEnvironmentIdAsync(
+            string projectId,
+            string environmentIdOrName,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _ = projectId;
+            EnvironmentIdForResolution = environmentIdOrName;
+
+            return Task.FromResult(ResolvedEnvironmentId ?? environmentIdOrName);
+        }
+
         public Task<RailwayPostgresDatabaseDetails?> FindServiceByNameAsync(
             string projectId,
             string environmentId,
@@ -348,7 +443,7 @@ public sealed class RailwayPostgresContractTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             _ = projectId;
-            _ = environmentId;
+            EnvironmentIdForFind = environmentId;
             _ = serviceName;
 
             return Task.FromResult<RailwayPostgresDatabaseDetails?>(null);
@@ -387,7 +482,7 @@ public sealed class RailwayPostgresContractTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             _ = projectId;
-            _ = environmentId;
+            WaitedEnvironmentId = environmentId;
             _ = pollingOptions;
             WaitedServiceId = serviceId;
 

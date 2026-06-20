@@ -21,7 +21,7 @@ public static class RailwayPostgresBuilderExtensions
         /// </summary>
         /// <param name="serviceName">The explicit remote Railway PostgreSQL service name.</param>
         /// <param name="projectId">The Railway project id parameter.</param>
-        /// <param name="environmentId">The Railway environment id parameter.</param>
+        /// <param name="environmentId">The Railway environment id or exact environment name parameter.</param>
         /// <param name="apiToken">The infrastructure-only Railway API token parameter.</param>
         /// <param name="ownershipMode">The requested ownership mode for the remote service.</param>
         /// <param name="configure">Optional Railway PostgreSQL deployment settings.</param>
@@ -51,7 +51,7 @@ public static class RailwayPostgresBuilderExtensions
         /// </summary>
         /// <param name="serviceName">The explicit remote Railway PostgreSQL service name.</param>
         /// <param name="projectId">The Railway project id parameter.</param>
-        /// <param name="environmentId">The Railway environment id parameter.</param>
+        /// <param name="environmentId">The Railway environment id or exact environment name parameter.</param>
         /// <param name="apiToken">The infrastructure-only Railway API token parameter.</param>
         /// <param name="ownershipMode">The requested ownership mode for the remote service.</param>
         /// <param name="configure">Optional Railway PostgreSQL deployment settings.</param>
@@ -83,7 +83,7 @@ public static class RailwayPostgresBuilderExtensions
         /// </summary>
         /// <param name="serviceName">The explicit remote Railway PostgreSQL service name.</param>
         /// <param name="projectId">The Railway project id value.</param>
-        /// <param name="environmentId">The Railway environment id value.</param>
+        /// <param name="environmentId">The Railway environment id or exact environment name value.</param>
         /// <param name="apiToken">The infrastructure-only Railway API token value.</param>
         /// <param name="ownershipMode">The requested ownership mode for the remote service.</param>
         /// <param name="configure">Optional Railway PostgreSQL deployment settings.</param>
@@ -157,7 +157,7 @@ public static class RailwayPostgresBuilderExtensions
     /// <param name="builder">The existing PostgreSQL server resource builder returned from <c>AddPostgres</c>.</param>
     /// <param name="serviceName">The explicit remote Railway PostgreSQL service name parameter.</param>
     /// <param name="projectId">The Railway project id parameter.</param>
-    /// <param name="environmentId">The Railway environment id parameter.</param>
+    /// <param name="environmentId">The Railway environment id or exact environment name parameter.</param>
     /// <param name="apiToken">The infrastructure-only Railway API token parameter.</param>
     /// <param name="options">Optional Railway PostgreSQL deployment settings.</param>
     /// <returns>The same PostgreSQL server resource builder for normal Aspire chaining.</returns>

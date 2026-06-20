@@ -30,6 +30,19 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         }
         """;
 
+    private const string ListEnvironmentsQuery = """
+        query ListRailwayEnvironments($projectId: String!) {
+          environments(projectId: $projectId) {
+            edges {
+              node {
+                id
+                name
+              }
+            }
+          }
+        }
+        """;
+
     private const string GetServiceQuery = """
         query GetRailwayPostgresService($projectId: String!, $environmentId: String!, $serviceId: String!) {
           service(id: $serviceId) {
@@ -81,6 +94,51 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         _credentials = credentials;
 
         _httpClient.BaseAddress ??= new Uri("https://backboard.railway.com/graphql/v2");
+    }
+
+    public async Task<string> ResolveEnvironmentIdAsync(
+        string projectId,
+        string environmentIdOrName,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(environmentIdOrName);
+
+        if (Guid.TryParse(environmentIdOrName, out _))
+        {
+            return environmentIdOrName;
+        }
+
+        ListEnvironmentsData data = await SendAsync<ListEnvironmentsData>(
+            ListEnvironmentsQuery,
+            new { projectId },
+            cancellationToken).ConfigureAwait(false);
+
+        List<RailwayEnvironmentNode> matches =
+        [
+            .. data.Environments.Edges
+                .Select(edge => edge.Node)
+                .Where(environment => string.Equals(environment.Name, environmentIdOrName, StringComparison.Ordinal))
+                .Take(2)
+        ];
+
+        if (matches.Count == 0)
+        {
+            throw new RailwayPostgresProviderException(
+                RailwayPostgresProviderFailureKind.NotFound,
+                statusCode: null,
+                $"Railway environment '{environmentIdOrName}' was not found in project '{projectId}'.");
+        }
+
+        if (matches.Count > 1)
+        {
+            throw new RailwayPostgresProviderException(
+                RailwayPostgresProviderFailureKind.ProviderContract,
+                statusCode: null,
+                $"Railway returned more than one environment named '{environmentIdOrName}' in project '{projectId}'.");
+        }
+
+        return matches[0].Id;
     }
 
     public async Task<RailwayPostgresDatabaseDetails?> FindServiceByNameAsync(
@@ -524,6 +582,11 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         public RailwayProject Project { get; set; } = new();
     }
 
+    private sealed class ListEnvironmentsData
+    {
+        public RailwayEnvironmentConnection Environments { get; set; } = new();
+    }
+
     private sealed class GetTemplateData
     {
         public RailwayTemplate Template { get; set; } = new();
@@ -559,6 +622,23 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     private sealed class RailwayServiceEdge
     {
         public RailwayServiceNode Node { get; set; } = new();
+    }
+
+    private sealed class RailwayEnvironmentConnection
+    {
+        public IReadOnlyList<RailwayEnvironmentEdge> Edges { get; set; } = [];
+    }
+
+    private sealed class RailwayEnvironmentEdge
+    {
+        public RailwayEnvironmentNode Node { get; set; } = new();
+    }
+
+    private sealed class RailwayEnvironmentNode
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
     }
 
     private sealed class GetServiceData
