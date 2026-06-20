@@ -1,7 +1,7 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: PR #1 review feedback addressed locally; waiting for user push/check rerun.
-- Open questions/risks: Review threads were replied to but intentionally not marked resolved.
+- Current plan: PR #1 latest review feedback addressed locally; waiting for user push/check rerun.
+- Open questions/risks: Review threads were replied to but intentionally not marked resolved; live Railway test skips without secrets.
 - Next actions: user push branch; monitor PR checks; package/release review when ready.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
@@ -96,3 +96,8 @@
   - Why: PR #1 failed because the TypeScript fixture still used Redis/old Railway option exports.
   - Change: switched fixture to `addPostgres`, current Railway Postgres enums/options, database reference, and current output names (files: `tests/.../Fixtures/TypeScriptAppHost/*` | cmds: `gh pr checks`, `gh run view`, `eng/Validate-TypeScriptAppHostPackage.ps1`)
   - Notes: local TypeScript package gate passed after fixture update.
+### 2026-06-21 00:24 +01:00 (pingu/lib-impl)
+- Address latest PR #1 review comments [infra] (impact: high)
+  - Why: four new review threads flagged empty live filter, post-config deployment race, missing PostgreSQL output properties, and ignored creation scripts.
+  - Change: committed fixes `49cfc76`, `9604eea`, `3fd670a`, `abe0fda`; replied to all four threads (files: workflow tests, management client/pipeline, connection outputs, database provisioner)
+  - Notes: `dotnet test Aspire.Hosting.PostgreSQL.Railway.slnx -c Debug --no-restore` passed 28/29 with live skip; `eng/Validate-TypeScriptAppHostPackage.ps1` passed; not pushed.
