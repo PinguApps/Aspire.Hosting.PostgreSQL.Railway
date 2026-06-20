@@ -14,9 +14,9 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     private static readonly TimeSpan _createdServiceLookupDelay = TimeSpan.FromSeconds(2);
 
     private const string ListServicesQuery = """
-        query ListRailwayServices($projectId: String!) {
+        query ListRailwayServices($projectId: String!, $after: String) {
           project(id: $projectId) {
-            services(first: 100) {
+            services(first: 100, after: $after) {
               edges {
                 node {
                   id
@@ -24,6 +24,10 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                   projectId
                   deletedAt
                 }
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
               }
             }
           }
@@ -197,19 +201,32 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
 
-        ListServicesData data = await SendAsync<ListServicesData>(
-            ListServicesQuery,
-            new { projectId },
-            cancellationToken).ConfigureAwait(false);
+        List<RailwayServiceNode> matches = [];
+        string? after = null;
 
-        List<RailwayServiceNode> matches =
-        [
-            .. data.Project.Services.Edges
-            .Select(edge => edge.Node)
-            .Where(service => service.DeletedAt is null)
-            .Where(service => string.Equals(service.Name, serviceName, StringComparison.Ordinal))
-            .Take(2)
-        ];
+        do
+        {
+            ListServicesData data = await SendAsync<ListServicesData>(
+                ListServicesQuery,
+                new { projectId, after },
+                cancellationToken).ConfigureAwait(false);
+
+            matches.AddRange(
+                data.Project.Services.Edges
+                    .Select(edge => edge.Node)
+                    .Where(service => service.DeletedAt is null)
+                    .Where(service => string.Equals(service.Name, serviceName, StringComparison.Ordinal)));
+
+            if (matches.Count > 1)
+            {
+                break;
+            }
+
+            after = data.Project.Services.PageInfo.HasNextPage
+                ? data.Project.Services.PageInfo.EndCursor
+                : null;
+        }
+        while (!string.IsNullOrWhiteSpace(after));
 
         if (matches.Count > 1)
         {
@@ -1118,6 +1135,15 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     private sealed class RailwayServiceConnection
     {
         public IReadOnlyList<RailwayServiceEdge> Edges { get; set; } = [];
+
+        public RailwayPageInfo PageInfo { get; set; } = new();
+    }
+
+    private sealed class RailwayPageInfo
+    {
+        public bool HasNextPage { get; set; }
+
+        public string? EndCursor { get; set; }
     }
 
     private sealed class RailwayServiceEdge

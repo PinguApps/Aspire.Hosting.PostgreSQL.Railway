@@ -641,6 +641,78 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task ManagementClient_PagesServicesWhenResolvingByName()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "project": {
+                  "services": {
+                    "edges": [
+                      { "node": { "id": "svc_other", "name": "other-postgres", "projectId": "project-id", "deletedAt": null } }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": true,
+                      "endCursor": "cursor-1"
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "project": {
+                  "services": {
+                    "edges": [
+                      { "node": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null } }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "endCursor": null
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "status": "SUCCESS" } },
+                "variables": {
+                  "PGHOST": "postgres.railway.internal",
+                  "PGPORT": "5432",
+                  "PGUSER": "postgres",
+                  "PGPASSWORD": "postgres-password",
+                  "PGDATABASE": "railway",
+                  "DATABASE_PUBLIC_URL": "postgresql://postgres:postgres-password@shortline.proxy.rlwy.net:27543/railway"
+                }
+              }
+            }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        RailwayPostgresDatabaseDetails? service = await client.FindServiceByNameAsync(
+            "project-id",
+            "environment-id",
+            "orders-postgres",
+            CancellationToken.None);
+
+        Assert.NotNull(service);
+        Assert.Equal("svc_123", service.ServiceId);
+        Assert.Equal(3, handler.Requests.Count);
+
+        using JsonDocument secondPageRequest = JsonDocument.Parse(handler.Requests[1].Content!);
+        Assert.Equal("cursor-1", secondPageRequest.RootElement.GetProperty("variables").GetProperty("after").GetString());
+    }
+
+    [Fact]
     public async Task ManagementClient_WaitsWhenCreatedServiceExistsBeforeConnectionVariables()
     {
         FakeHttpMessageHandler handler = new();
