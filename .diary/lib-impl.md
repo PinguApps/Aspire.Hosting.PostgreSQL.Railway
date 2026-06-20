@@ -1,7 +1,7 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
 - Current plan: deployment options are implemented and live-verified via the temp Azure/Railway app.
-- Open questions/risks: HTTP healthcheck path and replica count remain intentionally unsupported for PostgreSQL semantics.
+- Open questions/risks: HTTP healthcheck path and replica count remain intentionally unsupported for PostgreSQL semantics; Railway docs list suffixed region identifiers, while API also exposes aliases that map to short ids.
 - Next actions: package/release review when ready.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
 
@@ -46,3 +46,8 @@
   - Why: deploy-time PostgreSQL services need configurable region, restart policy, resource limits, and shared memory.
   - Change: added options/DTO/docs/tests, Railway service config/limits/variable mutations, region-id resolution, guarded region redeploy, and readiness wait for successful deployment (files: `RailwayPostgresDeploymentOptions.cs`, `RailwayPostgresManagementClient.cs`, `RailwayPostgresContractTests.cs`, `README.md`, `docs/*`)
   - Notes: commits `3a19aca`, `27416f4`, `2884197`, `3febf7d`, `60a5d3d`, `8618ffd`; tests passed 16/16 and temp live deploy verified `ams`, `ON_FAILURE`, retries `7`, CPU/memory, SHM.
+### 2026-06-20 15:08 +01:00 (pingu/lib-impl)
+- Verify Railway region identifiers [infra] (impact: low)
+  - Why: suffixed Railway region names such as `us-east4-eqdc4a` looked project-specific.
+  - Change: checked official Railway regions docs and live `regions` GraphQL output (cmds: Railway GraphQL `regions`)
+  - Notes: docs list the suffixed values as Config as Code identifiers; API also exposes aliases (`us-east4`, `europe-west4`, etc.) that map to short ids (`iad`, `ams`, `sin`, `sfo`).
