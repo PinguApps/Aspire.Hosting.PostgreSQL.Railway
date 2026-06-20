@@ -112,6 +112,51 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task RailwayReferenceConnectionOutput_EscapesConnectionStringValues()
+    {
+        IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
+        IResourceBuilder<PostgresServerResource> postgres = app.AddPostgres("postgres")
+            .PublishToRailway(
+                "orders-postgres",
+                app.AddParameter("railway-project-id"),
+                app.AddParameter("railway-environment-id"),
+                app.AddParameter("railway-api-token", secret: true));
+        RailwayPostgresOutputs outputs = postgres.Resource.GetRailwayPostgresOutputs();
+        RailwayPostgresDatabaseDetails service = new()
+        {
+            ServiceId = "svc_123",
+            ServiceName = "orders-postgres",
+            ProjectId = "project-id",
+            EnvironmentId = "environment-id",
+            Host = "shortline.proxy.rlwy.net",
+            Port = 27543,
+            UserName = "post;gres",
+            Password = "postgres;password\"value",
+            DatabaseName = "rail;way",
+            ConnectionString = RailwayPostgresConnectionString.Create(
+                "shortline.proxy.rlwy.net",
+                27543,
+                "post;gres",
+                "postgres;password\"value",
+                "rail;way"),
+            ProvisioningConnectionString = string.Empty,
+            LatestDeploymentStatus = "SUCCESS",
+        };
+        outputs.Populate(service);
+        RailwayPostgresReferenceConnectionOutput referenceOutput =
+            RailwayPostgresReferenceConnectionOutput.ForDatabase(outputs, "orders;db");
+
+        string? connectionString = await referenceOutput.GetConnectionStringAsync(CancellationToken.None);
+        NpgsqlConnectionStringBuilder builder = new(connectionString);
+
+        Assert.Equal("post;gres", builder.Username);
+        Assert.Equal("postgres;password\"value", builder.Password);
+        Assert.Equal("orders;db", builder.Database);
+        Assert.Contains("{postgres.outputs.ConnectionString}", referenceOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
+        Assert.DoesNotContain("{postgres.outputs.Password}", referenceOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PublishToRailway_CapturesDeploymentOptions()
     {
         IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
@@ -185,7 +230,7 @@ public sealed class RailwayPostgresContractTests
         ConnectionStringReference connectionString = Assert.IsType<ConnectionStringReference>(environmentVariables["ConnectionStrings__orders"]);
         RailwayPostgresReferenceConnectionOutput referencedOutput =
             Assert.IsType<RailwayPostgresReferenceConnectionOutput>(connectionString.Resource);
-        Assert.Contains("{postgres.outputs.Host}", referencedOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
+        Assert.Contains("{postgres.outputs.ConnectionString}", referencedOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
         Assert.Contains("Database=orders", referencedOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
         Assert.DoesNotContain("railway-api-token", referencedOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
     }

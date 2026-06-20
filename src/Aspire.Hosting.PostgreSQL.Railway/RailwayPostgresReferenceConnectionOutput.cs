@@ -1,26 +1,29 @@
 using Aspire.Hosting.ApplicationModel;
+using Aspire.Hosting.PostgreSQL.Railway.Management;
+using Npgsql;
 
 namespace Aspire.Hosting.PostgreSQL.Railway;
 
 internal sealed class RailwayPostgresReferenceConnectionOutput : IResourceWithConnectionString
 {
-    private readonly Func<CancellationToken, ValueTask<string?>> _getDatabaseNameAsync;
+    private readonly Func<CancellationToken, ValueTask<string?>> _getConnectionStringAsync;
     private readonly RailwayPostgresOutputs _outputs;
 
     private RailwayPostgresReferenceConnectionOutput(
         RailwayPostgresOutputs outputs,
         ReferenceExpression databaseNameExpression,
-        Func<CancellationToken, ValueTask<string?>> getDatabaseNameAsync)
+        ReferenceExpression connectionStringExpression,
+        Func<CancellationToken, ValueTask<string?>> getConnectionStringAsync)
     {
         ArgumentNullException.ThrowIfNull(outputs);
         ArgumentNullException.ThrowIfNull(databaseNameExpression);
-        ArgumentNullException.ThrowIfNull(getDatabaseNameAsync);
+        ArgumentNullException.ThrowIfNull(connectionStringExpression);
+        ArgumentNullException.ThrowIfNull(getConnectionStringAsync);
 
         _outputs = outputs;
         DatabaseNameExpression = databaseNameExpression;
-        _getDatabaseNameAsync = getDatabaseNameAsync;
-        ConnectionStringExpression = ReferenceExpression.Create(
-            $"Host={outputs.Host};Port={outputs.Port};Username={outputs.UserName};Password={outputs.Password};Database={databaseNameExpression};SSL Mode=Require");
+        _getConnectionStringAsync = getConnectionStringAsync;
+        ConnectionStringExpression = connectionStringExpression;
     }
 
     public string Name => "railway-postgres-reference-connection-output";
@@ -38,7 +41,8 @@ internal sealed class RailwayPostgresReferenceConnectionOutput : IResourceWithCo
         return new(
             outputs,
             outputs.DatabaseName.AsReferenceExpression(),
-            outputs.DatabaseName.GetValueAsync);
+            outputs.ConnectionString.AsReferenceExpression(),
+            outputs.ConnectionString.GetValueAsync);
     }
 
     public static RailwayPostgresReferenceConnectionOutput ForDatabase(RailwayPostgresOutputs outputs, string databaseName)
@@ -49,18 +53,20 @@ internal sealed class RailwayPostgresReferenceConnectionOutput : IResourceWithCo
         return new(
             outputs,
             ReferenceExpression.Create($"{databaseName}"),
-            cancellationToken => ValueTask.FromResult<string?>(databaseName));
+            ReferenceExpression.Create($"{outputs.ConnectionString};{CreateDatabaseConnectionStringFragment(databaseName)}"),
+            async cancellationToken =>
+            {
+                string? connectionString = await outputs.ConnectionString.GetValueAsync(cancellationToken).ConfigureAwait(false);
+
+                return string.IsNullOrWhiteSpace(connectionString)
+                    ? connectionString
+                    : RailwayPostgresConnectionString.WithDatabaseName(connectionString, databaseName);
+            });
     }
 
     public async ValueTask<string?> GetConnectionStringAsync(CancellationToken cancellationToken = default)
     {
-        string? host = await _outputs.Host.GetValueAsync(cancellationToken).ConfigureAwait(false);
-        string? port = await _outputs.Port.GetValueAsync(cancellationToken).ConfigureAwait(false);
-        string? userName = await _outputs.UserName.GetValueAsync(cancellationToken).ConfigureAwait(false);
-        string? password = await _outputs.Password.GetValueAsync(cancellationToken).ConfigureAwait(false);
-        string? databaseName = await _getDatabaseNameAsync(cancellationToken).ConfigureAwait(false);
-
-        return $"Host={host};Port={port};Username={userName};Password={password};Database={databaseName};SSL Mode=Require";
+        return await _getConnectionStringAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public IEnumerable<KeyValuePair<string, ReferenceExpression>> GetConnectionProperties()
@@ -70,5 +76,15 @@ internal sealed class RailwayPostgresReferenceConnectionOutput : IResourceWithCo
         yield return new("Username", _outputs.UserName.AsReferenceExpression());
         yield return new("Password", _outputs.Password.AsReferenceExpression());
         yield return new("Database", DatabaseNameExpression);
+    }
+
+    private static string CreateDatabaseConnectionStringFragment(string databaseName)
+    {
+        NpgsqlConnectionStringBuilder builder = new()
+        {
+            Database = databaseName,
+        };
+
+        return builder.ConnectionString;
     }
 }
