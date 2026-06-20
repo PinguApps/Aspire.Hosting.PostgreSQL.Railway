@@ -1,6 +1,6 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: deployment options are implemented; create-time region is applied in the Railway template payload before volume creation.
+- Current plan: deployment options are implemented; clean create and reuse deploys are live-verified.
 - Open questions/risks: Aspire printed Azure hostname can differ from the actual stable App Service hostname in existing state.
 - Next actions: package/release review when ready.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
@@ -71,3 +71,8 @@
   - Why: applying `Region` after template creation could create the Postgres volume in Railway's default region, then trigger a volume migration on first deploy.
   - Change: pass deploy options into `templateDeployV2` serialized config, keep polling through transient `deploymentStopped=true` while `DEPLOYING`, and adopt by configured name when cached service id was deleted (files: `RailwayPostgresCreateServiceRequest.cs`, `RailwayPostgresManagementClient.cs`, `RailwayPostgresRemoteIdentityResolver.cs`, `RailwayPostgresContractTests.cs` | cmds: `dotnet test`, temp `deploy-local.ps1`)
   - Notes: deleted failed Railway service `205074f6-...`; clean create succeeded with service `6ba9f99d-...` in `sin`, reuse deploy succeeded, `/postgres` returned 200.
+### 2026-06-20 21:11 +01:00 (pingu/lib-impl)
+- Wait through missing Railway service instance [infra] (impact: high)
+  - Why: after `templateDeployV2`, Railway can list the new service before `serviceInstance(...)` exists, producing transient `ServiceInstance not found`.
+  - Change: treat `ServiceInstance not found` as transient only inside created-service polling and added regression coverage (files: `RailwayPostgresManagementClient.cs`, `RailwayPostgresContractTests.cs` | cmds: `dotnet test`, temp `deploy-local.ps1`)
+  - Notes: deleted service `35edcb5a-...`; clean create succeeded with `acbdabd2-...`, reuse deploy succeeded, Railway `SUCCESS` in `sin`, `/postgres` returned 200.

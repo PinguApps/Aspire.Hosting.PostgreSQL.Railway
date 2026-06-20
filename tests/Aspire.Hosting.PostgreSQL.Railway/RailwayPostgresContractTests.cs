@@ -496,6 +496,26 @@ public sealed class RailwayPostgresContractTests
             """);
         handler.Enqueue(System.Net.HttpStatusCode.OK, """
             {
+              "errors": [
+                { "message": "ServiceInstance not found" }
+              ]
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "project": {
+                  "services": {
+                    "edges": [
+                      { "node": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null } }
+                    ]
+                  }
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
               "data": {
                 "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
                 "serviceInstance": { "latestDeployment": { "status": "DEPLOYING" } },

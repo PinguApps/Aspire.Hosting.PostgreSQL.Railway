@@ -534,30 +534,47 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         CancellationToken cancellationToken)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
+        RailwayPostgresProviderException? lastTransientException = null;
 
         while (true)
         {
-            RailwayPostgresDatabaseDetails? service = await FindServiceByNameAsync(
-                request.ProjectId,
-                request.EnvironmentId,
-                request.ServiceName,
-                cancellationToken).ConfigureAwait(false);
-
-            if (service is not null)
+            try
             {
-                return service;
+                RailwayPostgresDatabaseDetails? service = await FindServiceByNameAsync(
+                    request.ProjectId,
+                    request.EnvironmentId,
+                    request.ServiceName,
+                    cancellationToken).ConfigureAwait(false);
+
+                if (service is not null)
+                {
+                    return service;
+                }
+            }
+            catch (RailwayPostgresProviderException exception) when (IsServiceInstanceNotFound(exception))
+            {
+                lastTransientException = exception;
             }
 
             if (stopwatch.Elapsed >= _createdServiceLookupTimeout)
             {
+                string suffix = lastTransientException is null
+                    ? string.Empty
+                    : $" Last transient provider error: {lastTransientException.Message}";
+
                 throw new RailwayPostgresProviderException(
                     RailwayPostgresProviderFailureKind.ProviderContract,
                     statusCode: null,
-                    $"Railway PostgreSQL service '{request.ServiceName}' was not visible after the template deployment completed.");
+                    $"Railway PostgreSQL service '{request.ServiceName}' was not visible after the template deployment completed.{suffix}");
             }
 
             await Task.Delay(_createdServiceLookupDelay, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    private static bool IsServiceInstanceNotFound(RailwayPostgresProviderException exception)
+    {
+        return exception.Message.Contains("ServiceInstance not found", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<HttpResponseMessage> SendRequestAsync(HttpRequestMessage request, CancellationToken cancellationToken)
