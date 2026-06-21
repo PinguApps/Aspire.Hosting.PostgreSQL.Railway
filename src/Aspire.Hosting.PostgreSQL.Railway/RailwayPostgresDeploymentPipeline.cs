@@ -69,7 +69,7 @@ internal static class RailwayPostgresDeploymentPipeline
             context.CancellationToken)
             .ConfigureAwait(false);
 
-        await ApplyOutputsAsync(resource, context, result.Database, context.CancellationToken).ConfigureAwait(false);
+        await ApplyOutputsAsync(resource, context, result.Database, result.Template, context.CancellationToken).ConfigureAwait(false);
     }
 
     internal static async Task<RailwayPostgresDatabaseDetails?> ExecuteAsync(
@@ -136,6 +136,7 @@ internal static class RailwayPostgresDeploymentPipeline
         PostgresServerResource resource,
         PipelineStepContext context,
         RailwayPostgresDatabaseDetails service,
+        RailwayPostgresTemplate? template,
         CancellationToken cancellationToken)
     {
         List<PostgresDatabaseResource> childDatabases =
@@ -146,7 +147,7 @@ internal static class RailwayPostgresDeploymentPipeline
         ];
 
         await RailwayPostgresDatabaseProvisioner
-            .EnsureDatabasesAsync(service, CreateDatabaseProvisioningRequests(childDatabases), cancellationToken)
+            .EnsureDatabasesAsync(service, CreateDatabaseProvisioningRequests(childDatabases), template, cancellationToken)
             .ConfigureAwait(false);
 
         RailwayPostgresConnectionOutput serverOutput = resource.ApplyRailwayPostgresConnectionOutput(service);
@@ -286,7 +287,7 @@ internal static class RailwayPostgresDeploymentPipeline
 
         RailwayPostgresCreateFlowResult createResult =
             await new RailwayPostgresCreateFlow(client)
-                .ExecuteAsync(deployment, ownership, cancellationToken)
+                .ExecuteAsync(deployment, ownership, remoteIdentity.IdentityState?.Template, cancellationToken)
                 .ConfigureAwait(false);
 
         if (saveIdentityStateAsync is not null)
@@ -324,11 +325,12 @@ internal static class RailwayPostgresDeploymentPipeline
                     deployment.ProjectId,
                     deployment.EnvironmentId,
                     createResult.Database.ServiceId,
+                    createResult.Template ?? RailwayPostgresTemplate.Standard,
                     pollingOptions,
                     cancellationToken)
                 .ConfigureAwait(false);
 
-            createResult = new RailwayPostgresCreateFlowResult(configuredDatabase, createResult.Created);
+            createResult = new RailwayPostgresCreateFlowResult(configuredDatabase, createResult.Created, createResult.Template);
         }
 
         ReportCreatedOrAdopted(progressReporter, resourceName, deployment, createResult);

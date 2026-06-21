@@ -45,6 +45,7 @@ internal sealed class RailwayPostgresRemoteIdentityResolver
 
             RailwayPostgresRemoteIdentityResolution resolution = RailwayPostgresRemoteIdentityResolution.FoundDatabase(
                 cachedService,
+                cachedIdentity,
                 resolvedFromCachedIdentity: true);
 
             if (cachedService.ServiceName != configuredServiceName)
@@ -110,6 +111,7 @@ internal sealed class RailwayPostgresRemoteIdentityResolver
 
         return RailwayPostgresRemoteIdentityResolution.FoundDatabase(
             service,
+            cachedIdentity,
             resolvedFromCachedIdentity: true);
     }
 

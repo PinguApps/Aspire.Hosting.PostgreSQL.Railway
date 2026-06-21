@@ -9,7 +9,8 @@ internal static class RailwayPostgresConnectionString
         int port,
         string userName,
         string password,
-        string databaseName)
+        string databaseName,
+        SslMode sslMode = SslMode.Require)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(host);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(port);
@@ -24,18 +25,18 @@ internal static class RailwayPostgresConnectionString
             Username = userName,
             Password = password,
             Database = databaseName,
-            SslMode = SslMode.Require,
+            SslMode = sslMode,
         };
 
         return builder.ConnectionString;
     }
 
-    public static string CreateFromUri(string connectionUri)
+    public static string CreateFromUri(string connectionUri, SslMode sslMode = SslMode.Require)
     {
-        return CreateDetailsFromUri(connectionUri).ConnectionString;
+        return CreateDetailsFromUri(connectionUri, sslMode).ConnectionString;
     }
 
-    public static RailwayPostgresConnectionDetails CreateDetailsFromUri(string connectionUri)
+    public static RailwayPostgresConnectionDetails CreateDetailsFromUri(string connectionUri, SslMode sslMode = SslMode.Require)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionUri);
 
@@ -71,7 +72,7 @@ internal static class RailwayPostgresConnectionString
             userName,
             password,
             databaseName,
-            Create(host, port, userName, password, databaseName));
+            Create(host, port, userName, password, databaseName, sslMode));
     }
 
     public static string WithDatabaseName(string connectionString, string databaseName)

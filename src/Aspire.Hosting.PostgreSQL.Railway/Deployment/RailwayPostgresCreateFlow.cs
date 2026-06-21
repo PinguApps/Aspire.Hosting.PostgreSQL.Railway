@@ -22,6 +22,15 @@ internal sealed class RailwayPostgresCreateFlow
         RailwayPostgresOwnershipResolutionResult ownership,
         CancellationToken cancellationToken)
     {
+        return await ExecuteAsync(deployment, ownership, adoptedTemplate: null, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<RailwayPostgresCreateFlowResult> ExecuteAsync(
+        RailwayPostgresResolvedDeployment deployment,
+        RailwayPostgresOwnershipResolutionResult ownership,
+        RailwayPostgresTemplate? adoptedTemplate,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(deployment);
         ArgumentNullException.ThrowIfNull(ownership);
 
@@ -46,18 +55,23 @@ internal sealed class RailwayPostgresCreateFlow
             created = false;
         }
 
+        RailwayPostgresTemplate? serviceTemplate = created
+            ? deployment.Options.Template
+            : adoptedTemplate;
+        RailwayPostgresTemplate readinessTemplate = serviceTemplate ?? RailwayPostgresTemplate.Standard;
         RailwayPostgresDatabaseDetails readyService = await _client
             .WaitUntilReadyAsync(
                 deployment.ProjectId,
                 deployment.EnvironmentId,
                 service.ServiceId,
+                readinessTemplate,
                 _readinessPollingOptions,
                 cancellationToken)
             .ConfigureAwait(false);
 
         ValidateService(deployment, readyService);
 
-        return new RailwayPostgresCreateFlowResult(readyService, created);
+        return new RailwayPostgresCreateFlowResult(readyService, created, serviceTemplate);
     }
 
     private static void ValidateService(

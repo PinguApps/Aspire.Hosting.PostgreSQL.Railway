@@ -26,13 +26,14 @@ internal sealed class RailwayPostgresRemoteIdentityResolution
 
     public static RailwayPostgresRemoteIdentityResolution FoundDatabase(
         RailwayPostgresDatabaseDetails database,
+        RailwayPostgresRemoteIdentityState? identityState = null,
         bool resolvedFromCachedIdentity = false)
     {
         ArgumentNullException.ThrowIfNull(database);
 
         return new(
             database,
-            new RailwayPostgresRemoteIdentityState(database.ProjectId, database.ServiceName, database.ServiceId),
+            identityState ?? new RailwayPostgresRemoteIdentityState(database.ProjectId, database.ServiceName, database.ServiceId),
             resolvedFromCachedIdentity);
     }
 }

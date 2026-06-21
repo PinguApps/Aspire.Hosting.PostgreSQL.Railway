@@ -60,7 +60,7 @@ IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgre
             options.MemoryGB = 2;
             options.VCpus = 1;
             options.SharedMemoryBytes = 524288000;
-            options.PointInTimeRecovery = true;
+            options.Template = RailwayPostgresTemplate.PointInTimeRecovery;
         });
 
 IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders");
@@ -79,6 +79,7 @@ import {
   createBuilder,
   RailwayPostgresRegions,
   RailwayPostgresRestartPolicy,
+  RailwayPostgresTemplate,
   railwayPostgresOwnershipMode,
 } from "./.aspire/modules/aspire.mjs";
 
@@ -98,7 +99,7 @@ postgres = await postgres.publishToRailway(serviceName, projectId, environmentId
   memoryGB: 2,
   vCpus: 1,
   sharedMemoryBytes: 524288000,
-  pointInTimeRecovery: true,
+  template: RailwayPostgresTemplate.PointInTimeRecovery,
 });
 
 const orders = await postgres.addDatabase("orders");
@@ -143,17 +144,17 @@ If `railway-environment-id` is not a UUID, the deployment step resolves it by li
 | `MemoryGB` | Railway memory limit in GB. |
 | `VCpus` | Railway vCPU limit. |
 | `SharedMemoryBytes` | Sets Railway service variable `RAILWAY_SHM_SIZE_BYTES` for container shared memory. This is not volume storage. |
-| `PointInTimeRecovery` | When `true`, creates new services from Railway's Postgres PITR template instead of the standard Postgres template. Default is `false`. |
+| `Template` | Railway template for new services: `Standard`, `PointInTimeRecovery`, `PostGis`, `PgVector`, or `TimescaleDb`. Default is `Standard`. |
 
 When `Region` is set for a new PostgreSQL service, the deploy step applies it before waiting for Railway readiness. For existing volume-backed PostgreSQL services, region changes are rejected because Railway must migrate the attached volume; migrate manually in Railway or create a new service instead.
 
-`PointInTimeRecovery` is create-time only. If ownership adopts an existing Railway service, the package keeps using that service and does not convert it to PITR.
+`Template` is create-time only. If ownership adopts an existing Railway service, the package keeps using that service and does not convert it to another template. Services created by this package remember their original template in Aspire deployment state so later deploys keep matching connection-string behavior.
 
 Healthcheck path and replica count are intentionally not exposed for this PostgreSQL package. Railway healthchecks are HTTP based, while the PostgreSQL template exposes a database socket. Horizontal replicas of the default PostgreSQL template are not PostgreSQL HA/read replicas.
 
 ## Behaviour
 
-Local runs do not call Railway and keep normal Aspire PostgreSQL behaviour. During `aspire deploy`, this package creates or adopts the configured Railway PostgreSQL service, reads Railway's PostgreSQL variables, applies the server connection output, and applies child database connection strings for `AddDatabase(...)` resources.
+Local runs do not call Railway and keep normal Aspire PostgreSQL behaviour. During `aspire deploy`, this package creates or adopts the configured Railway PostgreSQL service, reads Railway's PostgreSQL variables, applies the server connection output, and applies child database connection strings for `AddDatabase(...)` resources. For PostGIS, pgvector, and TimescaleDB services created by this package, child databases are initialized with the matching extension.
 
 For C# AppHosts, importing `Aspire.Hosting.PostgreSQL.Railway` also makes `.WithReference(postgres)` and `.WithReference(database)` Railway-aware for resources marked with `.PublishToRailway(...)`. Consumers keep normal Aspire reference code while Azure App Service receives output-backed Railway PostgreSQL connection strings during deploy.
 

@@ -12,6 +12,7 @@ internal static class RailwayPostgresDatabaseProvisioner
     public static async Task EnsureDatabasesAsync(
         RailwayPostgresDatabaseDetails service,
         IEnumerable<RailwayPostgresDatabaseProvisioningRequest> databases,
+        RailwayPostgresTemplate? template,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(service);
@@ -36,7 +37,7 @@ internal static class RailwayPostgresDatabaseProvisioner
             : service.ProvisioningConnectionString;
 
         await ExecuteWithRetryAsync(
-            () => EnsureDatabasesOnceAsync(connectionString, distinctDatabases, cancellationToken),
+            () => EnsureDatabasesOnceAsync(connectionString, distinctDatabases, template, cancellationToken),
             cancellationToken)
             .ConfigureAwait(false);
     }
@@ -48,6 +49,26 @@ internal static class RailwayPostgresDatabaseProvisioner
         return string.IsNullOrWhiteSpace(database.CreationScript)
             ? $"CREATE DATABASE {QuoteIdentifier(database.DatabaseName)}"
             : database.CreationScript;
+    }
+
+    internal static string? CreateInitializeDatabaseCommandText(RailwayPostgresTemplate? template)
+    {
+        if (template == RailwayPostgresTemplate.PostGis)
+        {
+            return "CREATE EXTENSION IF NOT EXISTS postgis";
+        }
+
+        if (template == RailwayPostgresTemplate.PgVector)
+        {
+            return "CREATE EXTENSION IF NOT EXISTS vector";
+        }
+
+        if (template == RailwayPostgresTemplate.TimescaleDb)
+        {
+            return "CREATE EXTENSION IF NOT EXISTS timescaledb";
+        }
+
+        return null;
     }
 
     internal static bool IsTransientProvisioningException(Exception exception)
@@ -82,6 +103,7 @@ internal static class RailwayPostgresDatabaseProvisioner
     private static async Task EnsureDatabasesOnceAsync(
         string connectionString,
         IReadOnlyList<RailwayPostgresDatabaseProvisioningRequest> distinctDatabases,
+        RailwayPostgresTemplate? template,
         CancellationToken cancellationToken)
     {
         await using NpgsqlConnection connection = new(connectionString);
@@ -89,14 +111,16 @@ internal static class RailwayPostgresDatabaseProvisioner
 
         foreach (RailwayPostgresDatabaseProvisioningRequest database in distinctDatabases)
         {
-            await EnsureDatabaseAsync(connection, database, cancellationToken).ConfigureAwait(false);
+            await EnsureDatabaseAsync(connection, connectionString, database, template, cancellationToken).ConfigureAwait(false);
         }
     }
 
     [SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "PostgreSQL identifiers cannot be parameterized; database names are quoted as identifiers.")]
     private static async Task EnsureDatabaseAsync(
         NpgsqlConnection connection,
+        string connectionString,
         RailwayPostgresDatabaseProvisioningRequest database,
+        RailwayPostgresTemplate? template,
         CancellationToken cancellationToken)
     {
         await using NpgsqlCommand existsCommand = connection.CreateCommand();
@@ -107,12 +131,37 @@ internal static class RailwayPostgresDatabaseProvisioner
 
         if (exists is not null)
         {
+            await InitializeDatabaseAsync(connectionString, database.DatabaseName, template, cancellationToken).ConfigureAwait(false);
             return;
         }
 
         await using NpgsqlCommand createCommand = connection.CreateCommand();
         createCommand.CommandText = CreateCreateDatabaseCommandText(database);
         await createCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        await InitializeDatabaseAsync(connectionString, database.DatabaseName, template, cancellationToken).ConfigureAwait(false);
+    }
+
+    [SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "Template database initialization uses fixed provider-owned commands.")]
+    private static async Task InitializeDatabaseAsync(
+        string connectionString,
+        string databaseName,
+        RailwayPostgresTemplate? template,
+        CancellationToken cancellationToken)
+    {
+        string? commandText = CreateInitializeDatabaseCommandText(template);
+
+        if (commandText is null)
+        {
+            return;
+        }
+
+        await using NpgsqlConnection databaseConnection = new(RailwayPostgresConnectionString.WithDatabaseName(connectionString, databaseName));
+        await databaseConnection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        await using NpgsqlCommand command = databaseConnection.CreateCommand();
+        command.CommandText = commandText;
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static string QuoteIdentifier(string value)

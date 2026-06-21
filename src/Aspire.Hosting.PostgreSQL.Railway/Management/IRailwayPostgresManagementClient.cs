@@ -41,6 +41,7 @@ internal interface IRailwayPostgresManagementClient
         string projectId,
         string environmentId,
         string serviceId,
+        RailwayPostgresTemplate template,
         RailwayPostgresReadinessPollingOptions pollingOptions,
         CancellationToken cancellationToken)
     {
