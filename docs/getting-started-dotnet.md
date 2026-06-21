@@ -12,25 +12,26 @@ IResourceBuilder<ParameterResource> projectId = builder.AddParameter("railway-pr
 IResourceBuilder<ParameterResource> environmentId = builder.AddParameter("railway-environment-id");
 IResourceBuilder<ParameterResource> apiToken = builder.AddParameter("railway-api-token", secret: true);
 
-IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgres")
-    .PublishToRailway(
-        serviceName,
-        projectId,
-        environmentId,
-        apiToken,
-        RailwayPostgresOwnershipMode.CreateOrAdopt,
-        options =>
-        {
-            options.Region = RailwayPostgresRegions.EuWestMetal;
-            options.RestartPolicy = RailwayPostgresRestartPolicy.OnFailure;
-            options.RestartPolicyMaxRetries = 10;
-            options.MemoryGB = 2;
-            options.VCpus = 1;
-            options.SharedMemoryBytes = 524288000;
-            options.Template = RailwayPostgresTemplate.PointInTimeRecovery;
-        });
+IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgres");
 
 IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders");
+
+postgres.PublishToRailway(
+    serviceName,
+    projectId,
+    environmentId,
+    apiToken,
+    RailwayPostgresOwnershipMode.CreateOrAdopt,
+    options =>
+    {
+        options.Region = RailwayPostgresRegions.EuWestMetal;
+        options.RestartPolicy = RailwayPostgresRestartPolicy.OnFailure;
+        options.RestartPolicyMaxRetries = 10;
+        options.MemoryGB = 2;
+        options.VCpus = 1;
+        options.SharedMemoryBytes = 524288000;
+        options.Template = RailwayPostgresTemplate.PointInTimeRecovery;
+    });
 
 builder.AddProject<Projects.Api>("api")
     .WithReference(orders)
@@ -63,3 +64,5 @@ postgres.PublishToRailway(
 Local runs behave like standard Aspire PostgreSQL. `PublishToRailway` only records deploy-time intent during AppHost model construction.
 
 Keep normal Aspire references in C# AppHosts. When `Aspire.Hosting.PostgreSQL.Railway` is imported, `.WithReference(postgres)` and `.WithReference(database)` use Railway PostgreSQL outputs during deploy for resources marked with `.PublishToRailway(...)`.
+
+`PublishToRailway(...)` can be called before or after `postgres.AddDatabase(...)`. The child database resources are discovered from the AppHost model during deploy.

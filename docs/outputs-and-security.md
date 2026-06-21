@@ -11,6 +11,8 @@ builder.AddProject<Projects.Api>("api")
 After deploy, the server and child database connection strings resolve to Railway PostgreSQL.
 For C# AppHosts, the package's Railway-aware `WithReference` overload keeps Azure App Service from trying to resolve the Railway PostgreSQL resource as Azure-managed infrastructure.
 
+Connection strings use Railway's public PostgreSQL URL or TCP proxy when available, otherwise Railway's PostgreSQL host variables. Standard and PITR template connection strings use `Ssl Mode=Require`; PostGIS, pgvector, and TimescaleDB template connection strings use `Ssl Mode=Disable`.
+
 Supplementary Railway outputs are available on the server resource:
 
 ```csharp

@@ -46,7 +46,7 @@ aspire restore --non-interactive
 | --- | --- | --- |
 | `railway-postgres-service-name` | No | Railway PostgreSQL service name. |
 | `railway-project-id` | No | Existing Railway project id. |
-| `railway-environment-id` | No | Existing Railway environment id. |
+| `railway-environment-id` | No | Existing Railway environment id or exact environment name, for example `production`. |
 | `railway-api-token` | Yes | Railway API token. |
 
 Environment variable form for non-interactive deploy:
