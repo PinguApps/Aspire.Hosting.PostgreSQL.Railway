@@ -1,5 +1,7 @@
 # Aspire.Hosting.PostgreSQL.Railway Implementation Guide
 
+This is a historical migration log for the initial repository port. For current consumer guidance, use `README.md` and `docs/`.
+
 ## Assumptions
 
 - This repository should mirror `V:\Aspire.Hosting.PostgreSQL.Railway` as closely as practical.
@@ -9,7 +11,7 @@
 - Deploy behavior should be opt-in through a `PublishToRailway(...)` extension.
 - Ownership modes should match the Railway package shape: `CreateOnly`, `ExistingOnly`, `CreateOrAdopt`.
 - Railway deployment needs an existing project id, existing environment id or exact environment name, API token, and PostgreSQL service name.
-- Railway PostgreSQL exposes `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, and `DATABASE_URL`.
+- Railway PostgreSQL exposes PostgreSQL variables such as `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, `DATABASE_PUBLIC_URL`, `DATABASE_URL`, and TCP proxy variables when enabled.
 - Public contract choice: publish the `PostgresServerResource`; child `AddDatabase(...)` resources should be created inside the Railway PostgreSQL service during deploy.
 
 ## External References Checked
@@ -81,6 +83,6 @@
 ## Open Questions
 
 - Decision for v1: deploy into an existing Railway project/environment only.
-- Decision for v1: the Railway PostgreSQL service name is the stable remote identity, matching the Upstash database-name semantics.
+- Decision for v1: the Railway PostgreSQL service name is the stable remote identity.
 - Decision for v1: app-facing output uses resolved Railway variables from deploy time, not Railway reference expressions.
 - Decision for v1: expose the standard Aspire PostgreSQL connection string plus individual Railway PostgreSQL outputs: service id, host, port, user name, password, database name, and connection string.

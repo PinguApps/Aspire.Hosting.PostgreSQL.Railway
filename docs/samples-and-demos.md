@@ -21,7 +21,7 @@ The TypeScript sample has its own restore/typecheck flow:
 ```powershell
 Push-Location samples\TypeScriptAppHost
 aspire restore --non-interactive
-npm install --no-audit --no-fund
+npm ci --no-audit --no-fund
 npm run typecheck
 Pop-Location
 ```

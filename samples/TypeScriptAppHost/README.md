@@ -6,9 +6,9 @@ Run from this directory:
 
 ```powershell
 aspire restore --non-interactive
-npm install --no-audit --no-fund
+npm ci --no-audit --no-fund
 npm run typecheck
-aspire publish --non-interactive --list-steps
+aspire deploy --non-interactive --list-steps
 aspire start --non-interactive --isolated
 aspire wait postgres --status healthy --timeout 120 --non-interactive
 aspire stop --non-interactive
