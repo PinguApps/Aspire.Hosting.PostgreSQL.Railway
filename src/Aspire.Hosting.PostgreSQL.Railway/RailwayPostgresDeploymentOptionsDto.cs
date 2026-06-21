@@ -46,6 +46,12 @@ public sealed class RailwayPostgresDeploymentOptionsDto
     /// </summary>
     public RailwayPostgresTemplate? Template { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether new services use Railway's PostgreSQL point-in-time recovery template.
+    /// </summary>
+    [Obsolete("Use Template = RailwayPostgresTemplate.PointInTimeRecovery instead.")]
+    public bool? PointInTimeRecovery { get; set; }
+
     internal RailwayPostgresOwnershipMode GetOwnershipMode()
     {
         return OwnershipMode ?? RailwayPostgresOwnershipMode.CreateOrAdopt;
@@ -53,6 +59,12 @@ public sealed class RailwayPostgresDeploymentOptionsDto
 
     internal RailwayPostgresDeploymentOptions ToDeploymentOptions()
     {
+#pragma warning disable CS0618
+        RailwayPostgresTemplate template = Template ?? (PointInTimeRecovery == true
+            ? RailwayPostgresTemplate.PointInTimeRecovery
+            : RailwayPostgresTemplate.Standard);
+#pragma warning restore CS0618
+
         return new RailwayPostgresDeploymentOptions
         {
             Region = Region,
@@ -61,7 +73,7 @@ public sealed class RailwayPostgresDeploymentOptionsDto
             MemoryGB = MemoryGB,
             VCpus = VCpus,
             SharedMemoryBytes = SharedMemoryBytes,
-            Template = Template ?? RailwayPostgresTemplate.Standard,
+            Template = template,
         };
     }
 }

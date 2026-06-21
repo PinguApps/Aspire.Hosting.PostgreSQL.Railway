@@ -324,6 +324,7 @@ internal static class RailwayPostgresDeploymentPipeline
                     deployment.ProjectId,
                     deployment.EnvironmentId,
                     createResult.Database.ServiceId,
+                    deployment.Options.Template,
                     pollingOptions,
                     cancellationToken)
                 .ConfigureAwait(false);

@@ -297,6 +297,46 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public void PublishToRailway_PreservesObsoletePointInTimeRecoveryOption()
+    {
+        IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
+        IResourceBuilder<PostgresServerResource> postgres = app.AddPostgres("postgres")
+            .PublishToRailway(
+                "orders-postgres",
+                app.AddParameter("railway-project-id"),
+                app.AddParameter("railway-environment-id"),
+                app.AddParameter("railway-api-token", secret: true),
+                configure: options =>
+                {
+#pragma warning disable CS0618
+                    options.PointInTimeRecovery = true;
+#pragma warning restore CS0618
+                });
+
+        RailwayPostgresDeploymentOptions options = postgres.Resource.GetRailwayPostgresDeploymentState()
+            ?.Options
+            ?? throw new InvalidOperationException("Railway deployment state was not attached.");
+
+        Assert.Equal(RailwayPostgresTemplate.PointInTimeRecovery, options.Template);
+#pragma warning disable CS0618
+        Assert.True(options.PointInTimeRecovery);
+#pragma warning restore CS0618
+    }
+
+    [Fact]
+    public void DeploymentOptions_ValidationMessageIncludesUnsupportedTemplate()
+    {
+        RailwayPostgresDeploymentOptions options = new()
+        {
+            Template = (RailwayPostgresTemplate)999,
+        };
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(options.Validate);
+
+        Assert.Contains("999", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PublishToRailway_UsesRailwayOutputsOnlyForPublishReferences()
     {
         IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
@@ -1074,6 +1114,45 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task ManagementClient_BuildsPublicUrlFromTcpProxyVariables()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "status": "SUCCESS" } },
+                "variables": {
+                  "POSTGRES_USER": "post;gres",
+                  "POSTGRES_PASSWORD": "postgres/password",
+                  "POSTGRES_DB": "railway",
+                  "DATABASE_URL": "postgres://postgres:postgres-password@postgis.railway.internal:5432/railway",
+                  "RAILWAY_TCP_PROXY_DOMAIN": "shortline.proxy.rlwy.net",
+                  "RAILWAY_TCP_PROXY_PORT": "27543"
+                }
+              }
+            }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        RailwayPostgresDatabaseDetails service = await client.GetServiceAsync(
+            "project-id",
+            "environment-id",
+            "svc_123",
+            CancellationToken.None);
+
+        Assert.True(service.HasConnectionVariables);
+        Assert.Equal("shortline.proxy.rlwy.net", service.Host);
+        Assert.Equal(27543, service.Port);
+        Assert.Equal("post;gres", service.UserName);
+        Assert.Equal("postgres/password", service.Password);
+        Assert.Equal("railway", service.DatabaseName);
+        Assert.Equal(SslMode.Require, new NpgsqlConnectionStringBuilder(service.ConnectionString).SslMode);
+    }
+
+    [Fact]
     public async Task ManagementClient_WaitsWhenCreatedServiceExistsBeforeConnectionVariables()
     {
         FakeHttpMessageHandler handler = new();
@@ -1565,6 +1644,42 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("orders-postgres", serviceConfig.GetProperty("name").GetString());
     }
 
+    [Fact]
+    public async Task ManagementClient_UsesPgVectorSslModeWhenWaitingUntilReady()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "id": "deployment_1", "status": "SUCCESS" } },
+                "variables": {
+                  "PGHOST": "postgres.railway.internal",
+                  "PGPORT": "5432",
+                  "PGUSER": "postgres",
+                  "PGPASSWORD": "postgres-password",
+                  "PGDATABASE": "railway",
+                  "DATABASE_PUBLIC_URL": "postgresql://postgres:postgres-password@shortline.proxy.rlwy.net:27543/railway"
+                }
+              }
+            }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        RailwayPostgresDatabaseDetails service = await client.WaitUntilReadyAsync(
+            "project-id",
+            "environment-id",
+            "svc_123",
+            RailwayPostgresTemplate.PgVector,
+            RailwayPostgresReadinessPollingOptions.Default,
+            CancellationToken.None);
+
+        Assert.Equal(SslMode.Disable, new NpgsqlConnectionStringBuilder(service.ConnectionString).SslMode);
+        Assert.Equal(SslMode.Disable, new NpgsqlConnectionStringBuilder(service.ProvisioningConnectionString).SslMode);
+    }
+
     [Theory]
     [InlineData(RailwayPostgresTemplate.PostGis, "7101c553-9fac-4cd0-b332-1efab34eee5f")]
     [InlineData(RailwayPostgresTemplate.PgVector, "da106a2a-b086-486e-869f-1c0bfbf6dfc2")]
@@ -1677,6 +1792,12 @@ public sealed class RailwayPostgresContractTests
             SharedMemoryBytes = 134217728,
             Template = RailwayPostgresTemplate.PostGis,
         }.ToDeploymentOptions();
+#pragma warning disable CS0618
+        RailwayPostgresDeploymentOptions legacyDtoOptions = new RailwayPostgresDeploymentOptionsDto
+        {
+            PointInTimeRecovery = true,
+        }.ToDeploymentOptions();
+#pragma warning restore CS0618
         Assert.Equal(RailwayPostgresRegions.EuWestMetal, dtoOptions.Region);
         Assert.Equal(RailwayPostgresRestartPolicy.Always, dtoOptions.RestartPolicy);
         Assert.Equal(4, dtoOptions.RestartPolicyMaxRetries);
@@ -1684,6 +1805,7 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal(2, dtoOptions.VCpus);
         Assert.Equal(134217728, dtoOptions.SharedMemoryBytes);
         Assert.Equal(RailwayPostgresTemplate.PostGis, dtoOptions.Template);
+        Assert.Equal(RailwayPostgresTemplate.PointInTimeRecovery, legacyDtoOptions.Template);
     }
 
     private static RailwayPostgresResolvedDeployment CreateDeployment(RailwayPostgresOwnershipMode ownershipMode)
@@ -1818,11 +1940,13 @@ public sealed class RailwayPostgresContractTests
             string projectId,
             string environmentId,
             string serviceId,
+            RailwayPostgresTemplate template,
             RailwayPostgresReadinessPollingOptions pollingOptions,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             _ = projectId;
+            _ = template;
             WaitedEnvironmentId = environmentId;
             WaitedPollingOptions = pollingOptions;
             WaitedServiceId = serviceId;

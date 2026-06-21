@@ -51,6 +51,7 @@ internal sealed class RailwayPostgresCreateFlow
                 deployment.ProjectId,
                 deployment.EnvironmentId,
                 service.ServiceId,
+                deployment.Options.Template,
                 _readinessPollingOptions,
                 cancellationToken)
             .ConfigureAwait(false);

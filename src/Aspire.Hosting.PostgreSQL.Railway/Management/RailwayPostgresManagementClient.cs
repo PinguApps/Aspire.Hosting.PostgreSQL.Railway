@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Npgsql;
 
 namespace Aspire.Hosting.PostgreSQL.Railway.Management;
 
@@ -260,6 +261,16 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         string serviceId,
         CancellationToken cancellationToken)
     {
+        return await GetServiceAsync(projectId, environmentId, serviceId, SslMode.Require, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<RailwayPostgresDatabaseDetails> GetServiceAsync(
+        string projectId,
+        string environmentId,
+        string serviceId,
+        SslMode sslMode,
+        CancellationToken cancellationToken)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
         ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
@@ -291,12 +302,13 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         string privatePassword = GetFirstVariableOrEmpty(variables, "PGPASSWORD", "POSTGRES_PASSWORD");
         string privateDatabaseName = GetFirstVariableOrEmpty(variables, "PGDATABASE", "POSTGRES_DB");
         string publicDatabaseUrl = GetPublicDatabaseUrlOrEmpty(variables);
-        RailwayPostgresConnectionDetails? publicConnection = CreatePublicConnectionDetailsOrNull(publicDatabaseUrl);
+        RailwayPostgresConnectionDetails? publicConnection = CreatePublicConnectionDetailsOrNull(publicDatabaseUrl, sslMode);
         string connectionString = publicConnection?.ConnectionString
-            ?? CreateConnectionStringOrEmpty(privateHost, privatePort, privateUserName, privatePassword, privateDatabaseName);
+            ?? CreateConnectionStringOrEmpty(privateHost, privatePort, privateUserName, privatePassword, privateDatabaseName, sslMode);
         string provisioningConnectionString = CreateProvisioningConnectionStringOrEmpty(
             publicDatabaseUrl,
-            connectionString);
+            connectionString,
+            sslMode);
 
         return new RailwayPostgresDatabaseDetails
         {
@@ -363,6 +375,23 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         RailwayPostgresReadinessPollingOptions pollingOptions,
         CancellationToken cancellationToken)
     {
+        return await WaitUntilReadyAsync(
+            projectId,
+            environmentId,
+            serviceId,
+            RailwayPostgresTemplate.Standard,
+            pollingOptions,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<RailwayPostgresDatabaseDetails> WaitUntilReadyAsync(
+        string projectId,
+        string environmentId,
+        string serviceId,
+        RailwayPostgresTemplate template,
+        RailwayPostgresReadinessPollingOptions pollingOptions,
+        CancellationToken cancellationToken)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
         ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
@@ -372,7 +401,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
         while (true)
         {
-            RailwayPostgresDatabaseDetails service = await GetServiceAsync(projectId, environmentId, serviceId, cancellationToken).ConfigureAwait(false);
+            RailwayPostgresDatabaseDetails service = await GetServiceAsync(projectId, environmentId, serviceId, GetSslMode(template), cancellationToken).ConfigureAwait(false);
 
             if (service.HasConnectionVariables
                 && IsSuccessfulDeploymentStatus(service.LatestDeploymentStatus)
@@ -868,9 +897,48 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
         string databaseUrl = GetVariableOrEmpty(variables, "DATABASE_URL");
 
-        return IsLikelyPublicDatabaseUrl(databaseUrl)
-            ? databaseUrl
-            : string.Empty;
+        if (IsLikelyPublicDatabaseUrl(databaseUrl))
+        {
+            return databaseUrl;
+        }
+
+        return CreatePublicDatabaseUrlFromTcpProxyOrEmpty(variables);
+    }
+
+    private static string CreatePublicDatabaseUrlFromTcpProxyOrEmpty(IReadOnlyDictionary<string, string> variables)
+    {
+        string host = GetVariableOrEmpty(variables, "RAILWAY_TCP_PROXY_DOMAIN");
+        string port = GetVariableOrEmpty(variables, "RAILWAY_TCP_PROXY_PORT");
+        string userName = GetFirstVariableOrEmpty(variables, "PGUSER", "POSTGRES_USER");
+        string password = GetFirstVariableOrEmpty(variables, "PGPASSWORD", "POSTGRES_PASSWORD");
+        string databaseName = GetFirstVariableOrEmpty(variables, "PGDATABASE", "POSTGRES_DB");
+
+        if (string.IsNullOrWhiteSpace(host)
+            || string.IsNullOrWhiteSpace(port)
+            || string.IsNullOrWhiteSpace(userName)
+            || string.IsNullOrWhiteSpace(password)
+            || string.IsNullOrWhiteSpace(databaseName))
+        {
+            return string.Empty;
+        }
+
+        if (!int.TryParse(port, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int parsedPort)
+            || parsedPort <= 0)
+        {
+            throw new RailwayPostgresProviderException(
+                RailwayPostgresProviderFailureKind.ProviderContract,
+                statusCode: null,
+                $"Railway PostgreSQL service returned invalid RAILWAY_TCP_PROXY_PORT '{port}'.");
+        }
+
+        return $"postgresql://{Uri.EscapeDataString(userName)}:{Uri.EscapeDataString(password)}@{host}:{parsedPort}/{Uri.EscapeDataString(databaseName)}";
+    }
+
+    private static SslMode GetSslMode(RailwayPostgresTemplate template)
+    {
+        return template == RailwayPostgresTemplate.PgVector
+            ? SslMode.Disable
+            : SslMode.Require;
     }
 
     private static bool IsLikelyPublicDatabaseUrl(string databaseUrl)
@@ -1128,7 +1196,8 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         int port,
         string userName,
         string password,
-        string databaseName)
+        string databaseName,
+        SslMode sslMode)
     {
         if (string.IsNullOrWhiteSpace(host)
             || port <= 0
@@ -1139,16 +1208,17 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             return string.Empty;
         }
 
-        return RailwayPostgresConnectionString.Create(host, port, userName, password, databaseName);
+        return RailwayPostgresConnectionString.Create(host, port, userName, password, databaseName, sslMode);
     }
 
     private static string CreateProvisioningConnectionStringOrEmpty(
         string publicDatabaseUrl,
-        string connectionString)
+        string connectionString,
+        SslMode sslMode)
     {
         if (!string.IsNullOrWhiteSpace(publicDatabaseUrl))
         {
-            return RailwayPostgresConnectionString.CreateFromUri(publicDatabaseUrl);
+            return RailwayPostgresConnectionString.CreateFromUri(publicDatabaseUrl, sslMode);
         }
 
         return string.IsNullOrWhiteSpace(connectionString)
@@ -1156,11 +1226,11 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             : connectionString;
     }
 
-    private static RailwayPostgresConnectionDetails? CreatePublicConnectionDetailsOrNull(string publicDatabaseUrl)
+    private static RailwayPostgresConnectionDetails? CreatePublicConnectionDetailsOrNull(string publicDatabaseUrl, SslMode sslMode)
     {
         return string.IsNullOrWhiteSpace(publicDatabaseUrl)
             ? null
-            : RailwayPostgresConnectionString.CreateDetailsFromUri(publicDatabaseUrl);
+            : RailwayPostgresConnectionString.CreateDetailsFromUri(publicDatabaseUrl, sslMode);
     }
 
     private sealed class RailwayGraphQlRequest

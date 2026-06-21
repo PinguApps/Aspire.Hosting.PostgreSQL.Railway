@@ -62,6 +62,16 @@ public sealed class RailwayPostgresDeploymentOptions
     /// </summary>
     public RailwayPostgresTemplate Template { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether new services use Railway's PostgreSQL point-in-time recovery template.
+    /// </summary>
+    [Obsolete("Use Template = RailwayPostgresTemplate.PointInTimeRecovery instead.")]
+    public bool PointInTimeRecovery
+    {
+        get => Template == RailwayPostgresTemplate.PointInTimeRecovery;
+        set => Template = value ? RailwayPostgresTemplate.PointInTimeRecovery : RailwayPostgresTemplate.Standard;
+    }
+
     internal bool HasServiceInstanceSettings =>
         Region is not null
         || RestartPolicy is not null
@@ -93,7 +103,7 @@ public sealed class RailwayPostgresDeploymentOptions
 
         if (!Enum.IsDefined(Template))
         {
-            throw new InvalidOperationException("Railway PostgreSQL template is not supported.");
+            throw new InvalidOperationException($"Railway PostgreSQL template '{Template}' is not supported.");
         }
 
         if (RestartPolicyMaxRetries is < 0)
