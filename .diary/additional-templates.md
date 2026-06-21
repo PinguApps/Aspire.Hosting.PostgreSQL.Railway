@@ -1,6 +1,6 @@
 ## Rolling state
 - Goal: Address PR #3 review feedback for enum-based Railway PostgreSQL templates.
-- Current plan: PR comments fixed locally in commits `4d419e1`, `b52ee94`, and `aa9fee9`; all fetched unresolved threads have replies.
+- Current plan: PR comments fixed locally in commits `4d419e1`, `b52ee94`, `aa9fee9`, and `1f83b89`; all fetched unresolved threads have replies.
 - Open questions/risks: Template choice is create-time only; package-created services now persist template mode, while unknown/manual adopted services still avoid guessing template mode.
 - Next actions: user can inspect/push local commits; optional live deploy per template.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/Management/RailwayPostgresManagementClient.cs`, `src/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresDeploymentOptions.cs`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `README.md`.
@@ -26,3 +26,8 @@
   - Why: new unresolved threads flagged loss of nonstandard template mode on managed re-adopt and missing PostGIS extension for child DBs.
   - Change: persisted template in remote identity state, reused cached template for managed adopt readiness, initialized PostGIS child DBs with `CREATE EXTENSION IF NOT EXISTS postgis`, updated README/tests (files: `RailwayPostgresRemoteIdentity*.cs`, `RailwayPostgresCreateFlow*.cs`, `RailwayPostgresDatabaseProvisioner.cs`, `README.md`, `RailwayPostgresContractTests.cs`)
   - Notes: committed locally as `aa9fee9`, replied to both unresolved threads, no push; `dotnet test Aspire.Hosting.PostgreSQL.Railway.slnx -c Debug --no-restore` passed 49/50 with live skip, `eng\Validate-TypeScriptAppHostPackage.ps1` passed.
+### 2026-06-21 21:43 +01:00 (pingu/additional-templates)
+- Fix PR #3 extension-template child DB feedback [infra] (impact: low)
+  - Why: final unresolved thread flagged missing pgvector/TimescaleDB extension initialization for child DBs.
+  - Change: added pgvector and TimescaleDB child DB initialization commands, updated README/tests (files: `RailwayPostgresDatabaseProvisioner.cs`, `RailwayPostgresContractTests.cs`, `README.md`)
+  - Notes: committed locally as `1f83b89`, replied to thread, no push; `dotnet test Aspire.Hosting.PostgreSQL.Railway.slnx -c Debug --no-restore` passed 49/50 with live skip, `eng\Validate-TypeScriptAppHostPackage.ps1` passed.
