@@ -936,9 +936,14 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
     private static SslMode GetSslMode(RailwayPostgresTemplate template)
     {
-        return template == RailwayPostgresTemplate.PgVector
-            ? SslMode.Disable
-            : SslMode.Require;
+        if (template is RailwayPostgresTemplate.PostGis
+            or RailwayPostgresTemplate.PgVector
+            or RailwayPostgresTemplate.TimescaleDb)
+        {
+            return SslMode.Disable;
+        }
+
+        return SslMode.Require;
     }
 
     private static bool IsLikelyPublicDatabaseUrl(string databaseUrl)

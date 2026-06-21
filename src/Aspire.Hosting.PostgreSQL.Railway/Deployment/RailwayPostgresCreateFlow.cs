@@ -46,12 +46,15 @@ internal sealed class RailwayPostgresCreateFlow
             created = false;
         }
 
+        RailwayPostgresTemplate readinessTemplate = created
+            ? deployment.Options.Template
+            : RailwayPostgresTemplate.Standard;
         RailwayPostgresDatabaseDetails readyService = await _client
             .WaitUntilReadyAsync(
                 deployment.ProjectId,
                 deployment.EnvironmentId,
                 service.ServiceId,
-                deployment.Options.Template,
+                readinessTemplate,
                 _readinessPollingOptions,
                 cancellationToken)
             .ConfigureAwait(false);
