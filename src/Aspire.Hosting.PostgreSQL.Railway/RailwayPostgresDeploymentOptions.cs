@@ -22,6 +22,7 @@ public sealed class RailwayPostgresDeploymentOptions
         MemoryGB = source.MemoryGB;
         VCpus = source.VCpus;
         SharedMemoryBytes = source.SharedMemoryBytes;
+        PointInTimeRecovery = source.PointInTimeRecovery;
 
         Validate();
     }
@@ -55,6 +56,11 @@ public sealed class RailwayPostgresDeploymentOptions
     /// Gets or sets the PostgreSQL container shared memory size in bytes.
     /// </summary>
     public long? SharedMemoryBytes { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether new Railway PostgreSQL services use Railway's Postgres PITR template.
+    /// </summary>
+    public bool PointInTimeRecovery { get; set; }
 
     internal bool HasServiceInstanceSettings =>
         Region is not null

@@ -10,6 +10,7 @@ namespace Aspire.Hosting.PostgreSQL.Railway.Management;
 internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManagementClient
 {
     private const string PostgresTemplateId = "b55da7dc-09be-4140-bc65-1284d15d349c";
+    private const string PostgresPointInTimeRecoveryTemplateId = "ecd2f76a-b636-4b98-9336-608841bb2dd5";
     private static readonly TimeSpan _createdServiceLookupTimeout = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan _createdServiceLookupDelay = TimeSpan.FromSeconds(2);
 
@@ -320,9 +321,10 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        string templateId = GetTemplateId(request.Options);
         GetTemplateData templateData = await SendAsync<GetTemplateData>(
             GetTemplateQuery,
-            new { id = PostgresTemplateId },
+            new { id = templateId },
             cancellationToken).ConfigureAwait(false);
 
         string? requestedRegionId = request.Options.Region is null
@@ -342,7 +344,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                 {
                     projectId = request.ProjectId,
                     environmentId = request.EnvironmentId,
-                    templateId = PostgresTemplateId,
+                    templateId,
                     serializedConfig,
                 }
             },
@@ -745,6 +747,13 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         }
 
         return config;
+    }
+
+    private static string GetTemplateId(RailwayPostgresDeploymentOptions options)
+    {
+        return options.PointInTimeRecovery
+            ? PostgresPointInTimeRecoveryTemplateId
+            : PostgresTemplateId;
     }
 
     private static void ApplyTemplateDeployOptions(
