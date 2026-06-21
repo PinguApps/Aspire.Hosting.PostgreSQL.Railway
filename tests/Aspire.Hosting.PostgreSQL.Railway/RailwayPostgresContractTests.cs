@@ -574,6 +574,7 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("project-id", client.CreatedRequest?.ProjectId);
         Assert.Equal("environment-id", client.CreatedRequest?.EnvironmentId);
         Assert.Equal("svc_123", client.WaitedServiceId);
+        Assert.Equal(RailwayPostgresTemplate.Standard, result.Template);
         Assert.Equal("orders-postgres", result.Database.ServiceName);
     }
 
@@ -590,6 +591,23 @@ public sealed class RailwayPostgresContractTests
 
         Assert.False(result.Created);
         Assert.Equal(RailwayPostgresTemplate.Standard, client.WaitedTemplate);
+        Assert.Null(result.Template);
+    }
+
+    [Fact]
+    public async Task CreateFlow_UsesCachedTemplateWhenAdoptingManagedService()
+    {
+        RailwayPostgresResolvedDeployment deployment = CreateDeployment(RailwayPostgresOwnershipMode.CreateOrAdopt);
+        deployment.Options.Template = RailwayPostgresTemplate.Standard;
+        FakeManagementClient client = new(CreateServiceDetails());
+        RailwayPostgresOwnershipResolutionResult ownership = RailwayPostgresOwnershipResolutionResult.Adopt(CreateServiceDetails());
+
+        RailwayPostgresCreateFlowResult result = await new RailwayPostgresCreateFlow(client)
+            .ExecuteAsync(deployment, ownership, RailwayPostgresTemplate.PostGis, CancellationToken.None);
+
+        Assert.False(result.Created);
+        Assert.Equal(RailwayPostgresTemplate.PostGis, client.WaitedTemplate);
+        Assert.Equal(RailwayPostgresTemplate.PostGis, result.Template);
     }
 
     [Fact]
@@ -644,6 +662,35 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task DeploymentPipeline_UsesCachedTemplateWhenConfiguringManagedAdoptedService()
+    {
+        RailwayPostgresResolvedDeployment deployment = CreateDeployment(RailwayPostgresOwnershipMode.CreateOnly);
+        deployment.Options.Template = RailwayPostgresTemplate.Standard;
+        deployment.Options.MemoryGB = 2;
+        RailwayPostgresDatabaseDetails existingService = CreateServiceDetails();
+        FakeManagementClient client = new(existingService)
+        {
+            ServiceByName = existingService,
+        };
+
+        RailwayPostgresDatabaseDetails? database = await RailwayPostgresDeploymentPipeline.ExecuteAsync(
+            deployment,
+            client,
+            new RailwayPostgresRemoteIdentityState(
+                "project-id",
+                "orders-postgres",
+                "svc_123",
+                RailwayPostgresTemplate.TimescaleDb),
+            saveIdentityStateAsync: null,
+            CancellationToken.None);
+
+        Assert.NotNull(database);
+        Assert.Null(client.CreatedRequest);
+        Assert.Equal(RailwayPostgresTemplate.Standard, client.ConfiguredOptions?.Template);
+        Assert.Equal(RailwayPostgresTemplate.TimescaleDb, client.WaitedTemplate);
+    }
+
+    [Fact]
     public async Task RemoteIdentityResolver_AdoptsConfiguredNameWhenCachedServiceWasDeleted()
     {
         RailwayPostgresDatabaseDetails replacement = CreateServiceDetails(serviceId: "svc_new");
@@ -671,7 +718,11 @@ public sealed class RailwayPostgresContractTests
         await store.SaveAsync(
             "postgres",
             "project-a",
-            new RailwayPostgresRemoteIdentityState("project-a", "orders-postgres", "svc_project_a"),
+            new RailwayPostgresRemoteIdentityState(
+                "project-a",
+                "orders-postgres",
+                "svc_project_a",
+                RailwayPostgresTemplate.PostGis),
             CancellationToken.None);
 
         RailwayPostgresRemoteIdentityState? sameProject = await store.LoadAsync(
@@ -687,6 +738,7 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("project-a", sameProject.ProjectId);
         Assert.Equal("orders-postgres", sameProject.ServiceName);
         Assert.Equal("svc_project_a", sameProject.ServiceId);
+        Assert.Equal(RailwayPostgresTemplate.PostGis, sameProject.Template);
         Assert.Null(differentProject);
     }
 
@@ -1478,6 +1530,16 @@ public sealed class RailwayPostgresContractTests
             "CREATE DATABASE \"orders\"",
             RailwayPostgresDatabaseProvisioner.CreateCreateDatabaseCommandText(
                 new RailwayPostgresDatabaseProvisioningRequest("orders", creationScript: null)));
+    }
+
+    [Fact]
+    public void DatabaseProvisioner_InitializesPostGisChildDatabases()
+    {
+        Assert.Equal(
+            "CREATE EXTENSION IF NOT EXISTS postgis",
+            RailwayPostgresDatabaseProvisioner.CreateInitializeDatabaseCommandText(RailwayPostgresTemplate.PostGis));
+        Assert.Null(RailwayPostgresDatabaseProvisioner.CreateInitializeDatabaseCommandText(RailwayPostgresTemplate.Standard));
+        Assert.Null(RailwayPostgresDatabaseProvisioner.CreateInitializeDatabaseCommandText(RailwayPostgresTemplate.PgVector));
     }
 
     [Fact]

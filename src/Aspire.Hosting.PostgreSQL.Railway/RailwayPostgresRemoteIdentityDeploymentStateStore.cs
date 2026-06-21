@@ -11,6 +11,7 @@ internal sealed class RailwayPostgresRemoteIdentityDeploymentStateStore
     private const string ProjectIdKey = "projectId";
     private const string ServiceNameKey = "serviceName";
     private const string ServiceIdKey = "serviceId";
+    private const string TemplateKey = "template";
 
     private readonly IDeploymentStateManager _stateManager;
 
@@ -40,13 +41,18 @@ internal sealed class RailwayPostgresRemoteIdentityDeploymentStateStore
         string? serviceId = section.Data.TryGetPropertyValue(ServiceIdKey, out JsonNode? serviceIdValue)
             ? (string?)serviceIdValue
             : null;
+        RailwayPostgresTemplate? template = section.Data.TryGetPropertyValue(TemplateKey, out JsonNode? templateValue)
+            && Enum.TryParse((string?)templateValue, ignoreCase: false, out RailwayPostgresTemplate parsedTemplate)
+            && Enum.IsDefined(parsedTemplate)
+                ? parsedTemplate
+                : null;
 
         return string.IsNullOrWhiteSpace(storedProjectId)
             || !string.Equals(storedProjectId, projectId, StringComparison.Ordinal)
             || string.IsNullOrWhiteSpace(serviceName)
             || string.IsNullOrWhiteSpace(serviceId)
             ? null
-            : new RailwayPostgresRemoteIdentityState(storedProjectId, serviceName, serviceId);
+            : new RailwayPostgresRemoteIdentityState(storedProjectId, serviceName, serviceId, template);
     }
 
     public async Task SaveAsync(
@@ -64,6 +70,15 @@ internal sealed class RailwayPostgresRemoteIdentityDeploymentStateStore
         section.Data[ProjectIdKey] = projectId;
         section.Data[ServiceNameKey] = identityState.ServiceName;
         section.Data[ServiceIdKey] = identityState.ServiceId;
+
+        if (identityState.Template is RailwayPostgresTemplate template)
+        {
+            section.Data[TemplateKey] = template.ToString();
+        }
+        else
+        {
+            section.Data.Remove(TemplateKey);
+        }
 
         await _stateManager.SaveSectionAsync(section, cancellationToken).ConfigureAwait(false);
     }

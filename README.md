@@ -148,13 +148,13 @@ If `railway-environment-id` is not a UUID, the deployment step resolves it by li
 
 When `Region` is set for a new PostgreSQL service, the deploy step applies it before waiting for Railway readiness. For existing volume-backed PostgreSQL services, region changes are rejected because Railway must migrate the attached volume; migrate manually in Railway or create a new service instead.
 
-`Template` is create-time only. If ownership adopts an existing Railway service, the package keeps using that service and does not convert it to another template.
+`Template` is create-time only. If ownership adopts an existing Railway service, the package keeps using that service and does not convert it to another template. Services created by this package remember their original template in Aspire deployment state so later deploys keep matching connection-string behavior.
 
 Healthcheck path and replica count are intentionally not exposed for this PostgreSQL package. Railway healthchecks are HTTP based, while the PostgreSQL template exposes a database socket. Horizontal replicas of the default PostgreSQL template are not PostgreSQL HA/read replicas.
 
 ## Behaviour
 
-Local runs do not call Railway and keep normal Aspire PostgreSQL behaviour. During `aspire deploy`, this package creates or adopts the configured Railway PostgreSQL service, reads Railway's PostgreSQL variables, applies the server connection output, and applies child database connection strings for `AddDatabase(...)` resources.
+Local runs do not call Railway and keep normal Aspire PostgreSQL behaviour. During `aspire deploy`, this package creates or adopts the configured Railway PostgreSQL service, reads Railway's PostgreSQL variables, applies the server connection output, and applies child database connection strings for `AddDatabase(...)` resources. For PostGIS services created by this package, child databases are initialized with the `postgis` extension.
 
 For C# AppHosts, importing `Aspire.Hosting.PostgreSQL.Railway` also makes `.WithReference(postgres)` and `.WithReference(database)` Railway-aware for resources marked with `.PublishToRailway(...)`. Consumers keep normal Aspire reference code while Azure App Service receives output-backed Railway PostgreSQL connection strings during deploy.
 
