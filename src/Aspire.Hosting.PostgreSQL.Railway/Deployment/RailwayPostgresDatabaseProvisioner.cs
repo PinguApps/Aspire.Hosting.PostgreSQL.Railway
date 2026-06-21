@@ -53,9 +53,22 @@ internal static class RailwayPostgresDatabaseProvisioner
 
     internal static string? CreateInitializeDatabaseCommandText(RailwayPostgresTemplate? template)
     {
-        return template == RailwayPostgresTemplate.PostGis
-            ? "CREATE EXTENSION IF NOT EXISTS postgis"
-            : null;
+        if (template == RailwayPostgresTemplate.PostGis)
+        {
+            return "CREATE EXTENSION IF NOT EXISTS postgis";
+        }
+
+        if (template == RailwayPostgresTemplate.PgVector)
+        {
+            return "CREATE EXTENSION IF NOT EXISTS vector";
+        }
+
+        if (template == RailwayPostgresTemplate.TimescaleDb)
+        {
+            return "CREATE EXTENSION IF NOT EXISTS timescaledb";
+        }
+
+        return null;
     }
 
     internal static bool IsTransientProvisioningException(Exception exception)
@@ -129,7 +142,7 @@ internal static class RailwayPostgresDatabaseProvisioner
         await InitializeDatabaseAsync(connectionString, database.DatabaseName, template, cancellationToken).ConfigureAwait(false);
     }
 
-    [SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "PostGIS initialization uses a fixed provider-owned command.")]
+    [SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "Template database initialization uses fixed provider-owned commands.")]
     private static async Task InitializeDatabaseAsync(
         string connectionString,
         string databaseName,

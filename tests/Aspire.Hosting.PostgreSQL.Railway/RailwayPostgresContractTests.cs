@@ -1533,13 +1533,19 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
-    public void DatabaseProvisioner_InitializesPostGisChildDatabases()
+    public void DatabaseProvisioner_InitializesTemplateChildDatabases()
     {
         Assert.Equal(
             "CREATE EXTENSION IF NOT EXISTS postgis",
             RailwayPostgresDatabaseProvisioner.CreateInitializeDatabaseCommandText(RailwayPostgresTemplate.PostGis));
+        Assert.Equal(
+            "CREATE EXTENSION IF NOT EXISTS vector",
+            RailwayPostgresDatabaseProvisioner.CreateInitializeDatabaseCommandText(RailwayPostgresTemplate.PgVector));
+        Assert.Equal(
+            "CREATE EXTENSION IF NOT EXISTS timescaledb",
+            RailwayPostgresDatabaseProvisioner.CreateInitializeDatabaseCommandText(RailwayPostgresTemplate.TimescaleDb));
         Assert.Null(RailwayPostgresDatabaseProvisioner.CreateInitializeDatabaseCommandText(RailwayPostgresTemplate.Standard));
-        Assert.Null(RailwayPostgresDatabaseProvisioner.CreateInitializeDatabaseCommandText(RailwayPostgresTemplate.PgVector));
+        Assert.Null(RailwayPostgresDatabaseProvisioner.CreateInitializeDatabaseCommandText(RailwayPostgresTemplate.PointInTimeRecovery));
     }
 
     [Fact]
