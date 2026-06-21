@@ -58,6 +58,8 @@ When `Region` is set for a new PostgreSQL service, the deploy step applies it be
 
 `Template` is create-time only. If ownership adopts an existing Railway service, the package keeps using that service and does not convert it to another template.
 
+Standard and PITR template connection strings use `Ssl Mode=Require`. PostGIS, pgvector, and TimescaleDB template connection strings use `Ssl Mode=Disable`, matching the upstream Railway template endpoints this package targets.
+
 The package does not expose HTTP healthcheck settings or replica count for PostgreSQL. The Railway PostgreSQL template is a stateful database service, so SQL readiness checks and single-instance defaults are safer than HTTP healthchecks or horizontal replicas.
 
 ## Child Databases
@@ -69,3 +71,5 @@ IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders
 ```
 
 During deploy, the integration creates missing child databases inside the Railway PostgreSQL service, then gives each child database a connection string with its own database name.
+
+For PostGIS, pgvector, and TimescaleDB services created by this package, each child database is initialized with the matching extension after it is created.

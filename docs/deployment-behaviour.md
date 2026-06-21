@@ -18,4 +18,6 @@ During `aspire deploy`, the package:
 
 The deploy step is named `railway-postgres-<resource-name>`.
 
+Connection outputs prefer `DATABASE_PUBLIC_URL`, a public `DATABASE_URL`, or Railway TCP proxy variables when Railway exposes them. If no public endpoint is available, the package falls back to PostgreSQL host variables such as `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, and `PGDATABASE`.
+
 The package does not delete Railway services. `CreateOnly`/`ExistingOnly` failures are intentional guardrails against accidentally adopting or replacing the wrong remote service.

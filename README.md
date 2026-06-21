@@ -7,6 +7,7 @@
 - Resource of record: `PostgresServerResource`
 - Child databases: `postgres.AddDatabase(...)` resources are created inside the Railway PostgreSQL service during deploy
 - Required Railway inputs: service name, project id, environment id/name, API token
+- Connection output: public Railway PostgreSQL URL/TCP proxy when available, otherwise Railway's PostgreSQL host variables
 
 ## Install
 
@@ -45,25 +46,26 @@ IResourceBuilder<ParameterResource> projectId = builder.AddParameter("railway-pr
 IResourceBuilder<ParameterResource> environmentId = builder.AddParameter("railway-environment-id");
 IResourceBuilder<ParameterResource> apiToken = builder.AddParameter("railway-api-token", secret: true);
 
-IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgres")
-    .PublishToRailway(
-        serviceName,
-        projectId,
-        environmentId,
-        apiToken,
-        RailwayPostgresOwnershipMode.CreateOrAdopt,
-        options =>
-        {
-            options.Region = RailwayPostgresRegions.EuWestMetal;
-            options.RestartPolicy = RailwayPostgresRestartPolicy.OnFailure;
-            options.RestartPolicyMaxRetries = 10;
-            options.MemoryGB = 2;
-            options.VCpus = 1;
-            options.SharedMemoryBytes = 524288000;
-            options.Template = RailwayPostgresTemplate.PointInTimeRecovery;
-        });
+IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgres");
 
 IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders");
+
+postgres.PublishToRailway(
+    serviceName,
+    projectId,
+    environmentId,
+    apiToken,
+    RailwayPostgresOwnershipMode.CreateOrAdopt,
+    options =>
+    {
+        options.Region = RailwayPostgresRegions.EuWestMetal;
+        options.RestartPolicy = RailwayPostgresRestartPolicy.OnFailure;
+        options.RestartPolicyMaxRetries = 10;
+        options.MemoryGB = 2;
+        options.VCpus = 1;
+        options.SharedMemoryBytes = 524288000;
+        options.Template = RailwayPostgresTemplate.PointInTimeRecovery;
+    });
 
 builder.AddProject<Projects.Api>("api")
     .WithReference(orders)
@@ -150,11 +152,13 @@ When `Region` is set for a new PostgreSQL service, the deploy step applies it be
 
 `Template` is create-time only. If ownership adopts an existing Railway service, the package keeps using that service and does not convert it to another template. Services created by this package remember their original template in Aspire deployment state so later deploys keep matching connection-string behavior.
 
+Standard and PITR template connection strings use `Ssl Mode=Require`. PostGIS, pgvector, and TimescaleDB template connection strings use `Ssl Mode=Disable`, matching the upstream Railway template endpoints this package targets.
+
 Healthcheck path and replica count are intentionally not exposed for this PostgreSQL package. Railway healthchecks are HTTP based, while the PostgreSQL template exposes a database socket. Horizontal replicas of the default PostgreSQL template are not PostgreSQL HA/read replicas.
 
 ## Behaviour
 
-Local runs do not call Railway and keep normal Aspire PostgreSQL behaviour. During `aspire deploy`, this package creates or adopts the configured Railway PostgreSQL service, reads Railway's PostgreSQL variables, applies the server connection output, and applies child database connection strings for `AddDatabase(...)` resources. For PostGIS, pgvector, and TimescaleDB services created by this package, child databases are initialized with the matching extension.
+Local runs do not call Railway and keep normal Aspire PostgreSQL behaviour. During `aspire deploy`, this package creates or adopts the configured Railway PostgreSQL service, reads Railway's PostgreSQL variables, applies the server connection output, and applies child database connection strings for `AddDatabase(...)` resources. It prefers `DATABASE_PUBLIC_URL`, a public `DATABASE_URL`, or Railway TCP proxy variables when Railway exposes them, and otherwise falls back to PostgreSQL host variables. For PostGIS, pgvector, and TimescaleDB services created by this package, child databases are initialized with the matching extension.
 
 For C# AppHosts, importing `Aspire.Hosting.PostgreSQL.Railway` also makes `.WithReference(postgres)` and `.WithReference(database)` Railway-aware for resources marked with `.PublishToRailway(...)`. Consumers keep normal Aspire reference code while Azure App Service receives output-backed Railway PostgreSQL connection strings during deploy.
 

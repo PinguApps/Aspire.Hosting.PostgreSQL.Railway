@@ -142,7 +142,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Keep Aspire's built-in `PostgresServerResource` as the resource of record.
 - Preserve normal local PostgreSQL behavior unless the work is explicitly about deploy-time Railway behavior.
 - Keep app-facing PostgreSQL outputs separate from infrastructure-only management credentials.
-- Railway PostgreSQL connection strings use SSL mode `Require`.
+- Standard/PITR template connection strings use SSL mode `Require`; PostGIS, pgvector, and TimescaleDB template connection strings use SSL mode `Disable`.
 - C# consumers should use normal `.WithReference(postgres/database)` and `.WaitFor(postgres)` calls; this package owns the Railway-aware deploy-time reference translation.
 
 ### Testing And Docs
