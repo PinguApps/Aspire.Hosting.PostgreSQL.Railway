@@ -54,6 +54,16 @@ postgres.PublishToRailway(
 | `SharedMemoryBytes` | Service variable `RAILWAY_SHM_SIZE_BYTES` for container shared memory. This is not volume storage. |
 | `Template` | Railway template for new services: `Standard`, `PointInTimeRecovery`, `PostGis`, `PgVector`, or `TimescaleDb`. Default is `Standard`. |
 
+Railway templates used by `Template`:
+
+| Value | Railway template |
+| --- | --- |
+| `Standard` | [PostgreSQL](https://railway.com/deploy/postgres) |
+| `PointInTimeRecovery` | [Postgres PITR](https://railway.com/deploy/postgres-pitr) |
+| `PostGis` | [PostGIS](https://railway.com/deploy/postgis) |
+| `PgVector` | [pgvector](https://railway.com/deploy/3jJFCA) |
+| `TimescaleDb` | [TimescaleDB](https://railway.com/deploy/VSbF5V) |
+
 When `Region` is set for a new PostgreSQL service, the deploy step applies it before waiting for Railway readiness. For existing volume-backed PostgreSQL services, region changes are rejected because Railway must migrate the attached volume; migrate manually in Railway or create a new service instead.
 
 `Template` is create-time only. If ownership adopts an existing Railway service, the package keeps using that service and does not convert it to another template.

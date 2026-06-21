@@ -1,5 +1,7 @@
 # PinguApps.Aspire.Hosting.PostgreSQL.Railway
 
+[![PinguApps.Aspire.Hosting.PostgreSQL.Railway version](https://img.shields.io/nuget/v/PinguApps.Aspire.Hosting.PostgreSQL.Railway?style=for-the-badge&label=PinguApps.Aspire.Hosting.PostgreSQL.Railway)](https://www.nuget.org/packages/PinguApps.Aspire.Hosting.PostgreSQL.Railway/) [![PinguApps.Aspire.Hosting.PostgreSQL.Railway downloads](https://img.shields.io/nuget/dt/PinguApps.Aspire.Hosting.PostgreSQL.Railway?style=for-the-badge&label=downloads)](https://www.nuget.org/packages/PinguApps.Aspire.Hosting.PostgreSQL.Railway/)
+
 `PinguApps.Aspire.Hosting.PostgreSQL.Railway` lets an Aspire AppHost keep using Aspire's normal PostgreSQL resource model locally, then create or adopt a Railway PostgreSQL service during `aspire deploy`.
 
 - Local behaviour: standard Aspire PostgreSQL
@@ -147,6 +149,16 @@ If `railway-environment-id` is not a UUID, the deployment step resolves it by li
 | `VCpus` | Railway vCPU limit. |
 | `SharedMemoryBytes` | Sets Railway service variable `RAILWAY_SHM_SIZE_BYTES` for container shared memory. This is not volume storage. |
 | `Template` | Railway template for new services: `Standard`, `PointInTimeRecovery`, `PostGis`, `PgVector`, or `TimescaleDb`. Default is `Standard`. |
+
+Railway templates used by `Template`:
+
+| Value | Railway template |
+| --- | --- |
+| `Standard` | [PostgreSQL](https://railway.com/deploy/postgres) |
+| `PointInTimeRecovery` | [Postgres PITR](https://railway.com/deploy/postgres-pitr) |
+| `PostGis` | [PostGIS](https://railway.com/deploy/postgis) |
+| `PgVector` | [pgvector](https://railway.com/deploy/3jJFCA) |
+| `TimescaleDb` | [TimescaleDB](https://railway.com/deploy/VSbF5V) |
 
 When `Region` is set for a new PostgreSQL service, the deploy step applies it before waiting for Railway readiness. For existing volume-backed PostgreSQL services, region changes are rejected because Railway must migrate the attached volume; migrate manually in Railway or create a new service instead.
 
