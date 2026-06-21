@@ -117,6 +117,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ### Current Product Contract
 - This package is Railway PostgreSQL only.
+- New services use Railway's standard PostgreSQL template by default, with an opt-in Postgres PITR template.
 - Remote identity is the explicit Railway PostgreSQL service name.
 - Supported ownership modes are `CreateOnly`, `ExistingOnly`, and `CreateOrAdopt`.
 - Management authentication uses a Railway API token and is infrastructure-only.

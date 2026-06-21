@@ -280,6 +280,7 @@ public sealed class RailwayPostgresContractTests
                     options.MemoryGB = 2;
                     options.VCpus = 1;
                     options.SharedMemoryBytes = 524288000;
+                    options.PointInTimeRecovery = true;
                 });
 
         RailwayPostgresDeploymentOptions options = postgres.Resource.GetRailwayPostgresDeploymentState()
@@ -292,6 +293,7 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal(2, options.MemoryGB);
         Assert.Equal(1, options.VCpus);
         Assert.Equal(524288000, options.SharedMemoryBytes);
+        Assert.True(options.PointInTimeRecovery);
     }
 
     [Fact]
@@ -421,6 +423,7 @@ public sealed class RailwayPostgresContractTests
             MemoryGB = 1,
             VCpus = 0.5,
             SharedMemoryBytes = 268435456,
+            PointInTimeRecovery = true,
         };
         RailwayPostgresResolvedDeployment deployment = new(
             "orders-postgres",
@@ -448,6 +451,7 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal(1, client.ConfiguredOptions.MemoryGB);
         Assert.Equal(0.5, client.ConfiguredOptions.VCpus);
         Assert.Equal(268435456, client.ConfiguredOptions.SharedMemoryBytes);
+        Assert.True(client.CreatedRequest?.Options.PointInTimeRecovery);
     }
 
     [Fact]
@@ -1416,6 +1420,111 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task ManagementClient_CreatesRailwayPostgresFromPointInTimeRecoveryTemplateWhenConfigured()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "template": {
+                  "serializedConfig": {
+                    "buckets": {
+                      "postgres-pitr-wal": {
+                        "name": "Postgres-PITR"
+                      }
+                    },
+                    "services": {
+                      "template-service": {
+                        "name": "Postgres",
+                        "source": { "image": "ghcr.io/railwayapp-templates/postgres-ssl:18" },
+                        "variables": {
+                          "PGHOST": { "defaultValue": "${{RAILWAY_PRIVATE_DOMAIN}}" },
+                          "PGPORT": { "defaultValue": "5432" },
+                          "PGUSER": { "defaultValue": "${{POSTGRES_USER}}" },
+                          "PGPASSWORD": { "defaultValue": "${{POSTGRES_PASSWORD}}" },
+                          "PGDATABASE": { "defaultValue": "${{POSTGRES_DB}}" },
+                          "WAL_ARCHIVE_BUCKET": { "defaultValue": "${{Postgres-PITR.BUCKET}}" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "templateDeployV2": { "projectId": "project-id", "workflowId": "workflow-id" } } }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "project": {
+                  "services": {
+                    "edges": [
+                      { "node": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null } }
+                    ]
+                  }
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "status": "SUCCESS" } },
+                "variables": {
+                  "PGHOST": "postgres.railway.internal",
+                  "PGPORT": "5432",
+                  "PGUSER": "postgres",
+                  "PGPASSWORD": "postgres-password",
+                  "PGDATABASE": "railway",
+                  "DATABASE_PUBLIC_URL": "postgresql://postgres:postgres-password@shortline.proxy.rlwy.net:27543/railway"
+                }
+              }
+            }
+            """);
+
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        RailwayPostgresDatabaseDetails service = await client.CreateServiceAsync(
+            new RailwayPostgresCreateServiceRequest(
+                "orders-postgres",
+                "project-id",
+                "environment-id",
+                new RailwayPostgresDeploymentOptions
+                {
+                    PointInTimeRecovery = true,
+                }),
+            CancellationToken.None);
+
+        Assert.Equal("svc_123", service.ServiceId);
+
+        using JsonDocument templateRequest = JsonDocument.Parse(handler.Requests[0].Content!);
+        Assert.Equal(
+            "ecd2f76a-b636-4b98-9336-608841bb2dd5",
+            templateRequest.RootElement.GetProperty("variables").GetProperty("id").GetString());
+
+        using JsonDocument deployRequest = JsonDocument.Parse(handler.Requests[1].Content!);
+        JsonElement input = deployRequest.RootElement
+            .GetProperty("variables")
+            .GetProperty("input");
+        Assert.Equal("ecd2f76a-b636-4b98-9336-608841bb2dd5", input.GetProperty("templateId").GetString());
+        Assert.Equal("Postgres-PITR", input
+            .GetProperty("serializedConfig")
+            .GetProperty("buckets")
+            .GetProperty("postgres-pitr-wal")
+            .GetProperty("name")
+            .GetString());
+
+        JsonElement services = input.GetProperty("serializedConfig").GetProperty("services");
+        JsonElement serviceConfig = Assert.Single(services.EnumerateObject()).Value;
+        Assert.Equal("orders-postgres", serviceConfig.GetProperty("name").GetString());
+    }
+
+    [Fact]
     public void TypeScriptBridge_ExportsStableRailwayPostgresContract()
     {
         MethodInfo publish = typeof(RailwayPostgresBuilderExtensions)
@@ -1443,6 +1552,7 @@ public sealed class RailwayPostgresContractTests
             MemoryGB = 3,
             VCpus = 2,
             SharedMemoryBytes = 134217728,
+            PointInTimeRecovery = true,
         }.ToDeploymentOptions();
         Assert.Equal(RailwayPostgresRegions.EuWestMetal, dtoOptions.Region);
         Assert.Equal(RailwayPostgresRestartPolicy.Always, dtoOptions.RestartPolicy);
@@ -1450,6 +1560,7 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal(3, dtoOptions.MemoryGB);
         Assert.Equal(2, dtoOptions.VCpus);
         Assert.Equal(134217728, dtoOptions.SharedMemoryBytes);
+        Assert.True(dtoOptions.PointInTimeRecovery);
     }
 
     private static RailwayPostgresResolvedDeployment CreateDeployment(RailwayPostgresOwnershipMode ownershipMode)

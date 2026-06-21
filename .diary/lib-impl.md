@@ -1,9 +1,9 @@
 ## Rolling state
 - Goal: Build and verify the Aspire Railway PostgreSQL deployment integration.
-- Current plan: PR #1 latest two review feedback items addressed locally; waiting for user push/check rerun.
-- Open questions/risks: Review threads were replied to but intentionally not marked resolved; live Railway test skips without secrets; direct supplementary outputs return empty during local run before deploy outputs exist.
-- Next actions: user push branch; monitor PR checks; package/release review when ready.
-- Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `IMPLEMENTATION_GUIDE.md`, `samples/TypeScriptAppHost/`.
+- Current plan: PITR template option implemented locally; PR #1 review comments still need push/check rerun.
+- Open questions/risks: PITR applies only on create; adopted existing services are not converted; live Railway test skips without secrets.
+- Next actions: user review/push branch; monitor PR checks; optional live create with `PointInTimeRecovery = true`.
+- Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `README.md`, `samples/TypeScriptAppHost/`.
 
 ## Session log
 ### 2026-06-20 00:32 +01:00 (pingu/lib-impl)
@@ -111,3 +111,8 @@
   - Why: latest threads flagged references wired before `PublishToRailway` and stale cached service ids across Railway projects.
   - Change: committed fixes `fa67aa3`, `f091f49`; replied to both threads (files: reference builder, remote identity state/store/pipeline, tests)
   - Notes: `dotnet test Aspire.Hosting.PostgreSQL.Railway.slnx -c Debug --no-restore` passed 33/34 with live skip; `eng/Validate-TypeScriptAppHostPackage.ps1` passed; not pushed.
+### 2026-06-21 02:42 +01:00 (pingu/lib-impl)
+- Add Railway Postgres PITR template option [infra] (impact: med)
+  - Why: users need opt-in deployment of Railway's official Postgres PITR template while keeping standard Postgres as default.
+  - Change: added `PointInTimeRecovery` option/DTO copy, PITR template id selection for create, docs/samples/tests (files: `RailwayPostgresDeploymentOptions.cs`, `RailwayPostgresManagementClient.cs`, `RailwayPostgresContractTests.cs`, `README.md`, `docs/*`, `samples/*`)
+  - Notes: verified template code `postgres-pitr` id `ecd2f76a-b636-4b98-9336-608841bb2dd5`; `dotnet test Aspire.Hosting.PostgreSQL.Railway.slnx -c Debug --no-restore` passed 34/35 with live skip; `eng/Validate-TypeScriptAppHostPackage.ps1` passed.

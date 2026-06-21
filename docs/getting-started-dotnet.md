@@ -27,6 +27,7 @@ IResourceBuilder<PostgresServerResource> postgres = builder.AddPostgres("postgre
             options.MemoryGB = 2;
             options.VCpus = 1;
             options.SharedMemoryBytes = 524288000;
+            options.PointInTimeRecovery = true;
         });
 
 IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders");

@@ -187,6 +187,7 @@ public static class RailwayPostgresBuilderExtensions
         target.MemoryGB = source.MemoryGB;
         target.VCpus = source.VCpus;
         target.SharedMemoryBytes = source.SharedMemoryBytes;
+        target.PointInTimeRecovery = source.PointInTimeRecovery;
     }
 
     private static void RemoveExistingRailwayPipelineStep(PostgresServerResource resource)
