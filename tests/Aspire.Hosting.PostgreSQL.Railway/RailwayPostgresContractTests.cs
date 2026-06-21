@@ -280,7 +280,7 @@ public sealed class RailwayPostgresContractTests
                     options.MemoryGB = 2;
                     options.VCpus = 1;
                     options.SharedMemoryBytes = 524288000;
-                    options.PointInTimeRecovery = true;
+                    options.Template = RailwayPostgresTemplate.PointInTimeRecovery;
                 });
 
         RailwayPostgresDeploymentOptions options = postgres.Resource.GetRailwayPostgresDeploymentState()
@@ -293,7 +293,7 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal(2, options.MemoryGB);
         Assert.Equal(1, options.VCpus);
         Assert.Equal(524288000, options.SharedMemoryBytes);
-        Assert.True(options.PointInTimeRecovery);
+        Assert.Equal(RailwayPostgresTemplate.PointInTimeRecovery, options.Template);
     }
 
     [Fact]
@@ -423,7 +423,7 @@ public sealed class RailwayPostgresContractTests
             MemoryGB = 1,
             VCpus = 0.5,
             SharedMemoryBytes = 268435456,
-            PointInTimeRecovery = true,
+            Template = RailwayPostgresTemplate.PgVector,
         };
         RailwayPostgresResolvedDeployment deployment = new(
             "orders-postgres",
@@ -451,7 +451,7 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal(1, client.ConfiguredOptions.MemoryGB);
         Assert.Equal(0.5, client.ConfiguredOptions.VCpus);
         Assert.Equal(268435456, client.ConfiguredOptions.SharedMemoryBytes);
-        Assert.True(client.CreatedRequest?.Options.PointInTimeRecovery);
+        Assert.Equal(RailwayPostgresTemplate.PgVector, client.CreatedRequest?.Options.Template);
     }
 
     [Fact]
@@ -1033,6 +1033,47 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task ManagementClient_ParsesPostgresTemplateVariableAliases()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "status": "SUCCESS" } },
+                "variables": {
+                  "PGHOST": "postgis.railway.internal",
+                  "PGPORT": "5432",
+                  "POSTGRES_USER": "postgres",
+                  "POSTGRES_PASSWORD": "postgres-password",
+                  "POSTGRES_DB": "railway",
+                  "DATABASE_URL": "postgres://postgres:postgres-password@shortline.proxy.rlwy.net:27543/railway",
+                  "DATABASE_PRIVATE_URL": "postgres://postgres:postgres-password@postgis.railway.internal:5432/railway"
+                }
+              }
+            }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        RailwayPostgresDatabaseDetails service = await client.GetServiceAsync(
+            "project-id",
+            "environment-id",
+            "svc_123",
+            CancellationToken.None);
+
+        Assert.True(service.HasConnectionVariables);
+        Assert.Equal("shortline.proxy.rlwy.net", service.Host);
+        Assert.Equal(27543, service.Port);
+        Assert.Equal("postgres", service.UserName);
+        Assert.Equal("postgres-password", service.Password);
+        Assert.Equal("railway", service.DatabaseName);
+        Assert.Equal("shortline.proxy.rlwy.net", new NpgsqlConnectionStringBuilder(service.ConnectionString).Host);
+        Assert.Equal("shortline.proxy.rlwy.net", new NpgsqlConnectionStringBuilder(service.ProvisioningConnectionString).Host);
+    }
+
+    [Fact]
     public async Task ManagementClient_WaitsWhenCreatedServiceExistsBeforeConnectionVariables()
     {
         FakeHttpMessageHandler handler = new();
@@ -1496,7 +1537,7 @@ public sealed class RailwayPostgresContractTests
                 "environment-id",
                 new RailwayPostgresDeploymentOptions
                 {
-                    PointInTimeRecovery = true,
+                    Template = RailwayPostgresTemplate.PointInTimeRecovery,
                 }),
             CancellationToken.None);
 
@@ -1519,6 +1560,88 @@ public sealed class RailwayPostgresContractTests
             .GetProperty("name")
             .GetString());
 
+        JsonElement services = input.GetProperty("serializedConfig").GetProperty("services");
+        JsonElement serviceConfig = Assert.Single(services.EnumerateObject()).Value;
+        Assert.Equal("orders-postgres", serviceConfig.GetProperty("name").GetString());
+    }
+
+    [Theory]
+    [InlineData(RailwayPostgresTemplate.PostGis, "7101c553-9fac-4cd0-b332-1efab34eee5f")]
+    [InlineData(RailwayPostgresTemplate.PgVector, "da106a2a-b086-486e-869f-1c0bfbf6dfc2")]
+    [InlineData(RailwayPostgresTemplate.TimescaleDb, "9193cebc-f2e3-47d2-b17e-d97949ef9299")]
+    public async Task ManagementClient_UsesConfiguredRailwayPostgresTemplate(
+        RailwayPostgresTemplate template,
+        string expectedTemplateId)
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "template": {
+                  "serializedConfig": {
+                    "services": {
+                      "template-service": {
+                        "name": "Postgres",
+                        "source": { "image": "template-image" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "templateDeployV2": { "projectId": "project-id", "workflowId": "workflow-id" } } }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "project": {
+                  "services": {
+                    "edges": [
+                      { "node": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null } }
+                    ]
+                  }
+                }
+              }
+            }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            {
+              "data": {
+                "service": { "id": "svc_123", "name": "orders-postgres", "projectId": "project-id", "deletedAt": null },
+                "serviceInstance": { "latestDeployment": { "status": "DEPLOYING" } },
+                "variables": {}
+              }
+            }
+            """);
+
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("management-secret"));
+
+        await client.CreateServiceAsync(
+            new RailwayPostgresCreateServiceRequest(
+                "orders-postgres",
+                "project-id",
+                "environment-id",
+                new RailwayPostgresDeploymentOptions
+                {
+                    Template = template,
+                }),
+            CancellationToken.None);
+
+        using JsonDocument templateRequest = JsonDocument.Parse(handler.Requests[0].Content!);
+        Assert.Equal(
+            expectedTemplateId,
+            templateRequest.RootElement.GetProperty("variables").GetProperty("id").GetString());
+
+        using JsonDocument deployRequest = JsonDocument.Parse(handler.Requests[1].Content!);
+        JsonElement input = deployRequest.RootElement
+            .GetProperty("variables")
+            .GetProperty("input");
+
+        Assert.Equal(expectedTemplateId, input.GetProperty("templateId").GetString());
         JsonElement services = input.GetProperty("serializedConfig").GetProperty("services");
         JsonElement serviceConfig = Assert.Single(services.EnumerateObject()).Value;
         Assert.Equal("orders-postgres", serviceConfig.GetProperty("name").GetString());
@@ -1552,7 +1675,7 @@ public sealed class RailwayPostgresContractTests
             MemoryGB = 3,
             VCpus = 2,
             SharedMemoryBytes = 134217728,
-            PointInTimeRecovery = true,
+            Template = RailwayPostgresTemplate.PostGis,
         }.ToDeploymentOptions();
         Assert.Equal(RailwayPostgresRegions.EuWestMetal, dtoOptions.Region);
         Assert.Equal(RailwayPostgresRestartPolicy.Always, dtoOptions.RestartPolicy);
@@ -1560,7 +1683,7 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal(3, dtoOptions.MemoryGB);
         Assert.Equal(2, dtoOptions.VCpus);
         Assert.Equal(134217728, dtoOptions.SharedMemoryBytes);
-        Assert.True(dtoOptions.PointInTimeRecovery);
+        Assert.Equal(RailwayPostgresTemplate.PostGis, dtoOptions.Template);
     }
 
     private static RailwayPostgresResolvedDeployment CreateDeployment(RailwayPostgresOwnershipMode ownershipMode)

@@ -13,6 +13,7 @@ import {
   createBuilder,
   RailwayPostgresRegions,
   RailwayPostgresRestartPolicy,
+  RailwayPostgresTemplate,
   railwayPostgresOwnershipMode,
 } from "./.aspire/modules/aspire.mjs";
 
@@ -32,7 +33,7 @@ postgres = await postgres.publishToRailway(serviceName, projectId, environmentId
   memoryGB: 2,
   vCpus: 1,
   sharedMemoryBytes: 524288000,
-  pointInTimeRecovery: true,
+  template: RailwayPostgresTemplate.PointInTimeRecovery,
 });
 
 const orders = await postgres.addDatabase("orders");

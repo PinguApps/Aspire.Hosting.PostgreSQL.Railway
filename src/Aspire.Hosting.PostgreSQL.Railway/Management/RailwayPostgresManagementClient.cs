@@ -11,6 +11,9 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 {
     private const string PostgresTemplateId = "b55da7dc-09be-4140-bc65-1284d15d349c";
     private const string PostgresPointInTimeRecoveryTemplateId = "ecd2f76a-b636-4b98-9336-608841bb2dd5";
+    private const string PostgresPostGisTemplateId = "7101c553-9fac-4cd0-b332-1efab34eee5f";
+    private const string PostgresPgVectorTemplateId = "da106a2a-b086-486e-869f-1c0bfbf6dfc2";
+    private const string PostgresTimescaleDbTemplateId = "9193cebc-f2e3-47d2-b17e-d97949ef9299";
     private static readonly TimeSpan _createdServiceLookupTimeout = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan _createdServiceLookupDelay = TimeSpan.FromSeconds(2);
 
@@ -284,10 +287,10 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         string? status = data.ServiceInstance?.LatestDeployment?.Status;
         string privateHost = GetVariableOrEmpty(variables, "PGHOST");
         int privatePort = ParsePort(GetVariableOrEmpty(variables, "PGPORT"), service.Id);
-        string privateUserName = GetVariableOrEmpty(variables, "PGUSER");
-        string privatePassword = GetVariableOrEmpty(variables, "PGPASSWORD");
-        string privateDatabaseName = GetVariableOrEmpty(variables, "PGDATABASE");
-        string publicDatabaseUrl = GetVariableOrEmpty(variables, "DATABASE_PUBLIC_URL");
+        string privateUserName = GetFirstVariableOrEmpty(variables, "PGUSER", "POSTGRES_USER");
+        string privatePassword = GetFirstVariableOrEmpty(variables, "PGPASSWORD", "POSTGRES_PASSWORD");
+        string privateDatabaseName = GetFirstVariableOrEmpty(variables, "PGDATABASE", "POSTGRES_DB");
+        string publicDatabaseUrl = GetPublicDatabaseUrlOrEmpty(variables);
         RailwayPostgresConnectionDetails? publicConnection = CreatePublicConnectionDetailsOrNull(publicDatabaseUrl);
         string connectionString = publicConnection?.ConnectionString
             ?? CreateConnectionStringOrEmpty(privateHost, privatePort, privateUserName, privatePassword, privateDatabaseName);
@@ -751,9 +754,35 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
     private static string GetTemplateId(RailwayPostgresDeploymentOptions options)
     {
-        return options.PointInTimeRecovery
-            ? PostgresPointInTimeRecoveryTemplateId
-            : PostgresTemplateId;
+        if (options.Template == RailwayPostgresTemplate.Standard)
+        {
+            return PostgresTemplateId;
+        }
+
+        if (options.Template == RailwayPostgresTemplate.PointInTimeRecovery)
+        {
+            return PostgresPointInTimeRecoveryTemplateId;
+        }
+
+        if (options.Template == RailwayPostgresTemplate.PostGis)
+        {
+            return PostgresPostGisTemplateId;
+        }
+
+        if (options.Template == RailwayPostgresTemplate.PgVector)
+        {
+            return PostgresPgVectorTemplateId;
+        }
+
+        if (options.Template == RailwayPostgresTemplate.TimescaleDb)
+        {
+            return PostgresTimescaleDbTemplateId;
+        }
+
+        throw new RailwayPostgresProviderException(
+            RailwayPostgresProviderFailureKind.Validation,
+            statusCode: null,
+            $"Railway PostgreSQL template '{options.Template}' is not supported.");
     }
 
     private static void ApplyTemplateDeployOptions(
@@ -811,6 +840,48 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     private static string GetVariableOrEmpty(IReadOnlyDictionary<string, string> variables, string name)
     {
         return variables.TryGetValue(name, out string? value) ? value : string.Empty;
+    }
+
+    private static string GetFirstVariableOrEmpty(IReadOnlyDictionary<string, string> variables, params string[] names)
+    {
+        foreach (string name in names)
+        {
+            string value = GetVariableOrEmpty(variables, name);
+
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static string GetPublicDatabaseUrlOrEmpty(IReadOnlyDictionary<string, string> variables)
+    {
+        string publicDatabaseUrl = GetVariableOrEmpty(variables, "DATABASE_PUBLIC_URL");
+
+        if (!string.IsNullOrWhiteSpace(publicDatabaseUrl))
+        {
+            return publicDatabaseUrl;
+        }
+
+        string databaseUrl = GetVariableOrEmpty(variables, "DATABASE_URL");
+
+        return IsLikelyPublicDatabaseUrl(databaseUrl)
+            ? databaseUrl
+            : string.Empty;
+    }
+
+    private static bool IsLikelyPublicDatabaseUrl(string databaseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(databaseUrl)
+            || !Uri.TryCreate(databaseUrl, UriKind.Absolute, out Uri? uri))
+        {
+            return false;
+        }
+
+        return !uri.Host.EndsWith(".railway.internal", StringComparison.OrdinalIgnoreCase);
     }
 
     private static IReadOnlyDictionary<string, object>? CreateMultiRegionConfigOrNull(string? region)

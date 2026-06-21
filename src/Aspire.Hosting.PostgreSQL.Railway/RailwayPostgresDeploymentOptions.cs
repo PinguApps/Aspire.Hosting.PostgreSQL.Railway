@@ -22,7 +22,7 @@ public sealed class RailwayPostgresDeploymentOptions
         MemoryGB = source.MemoryGB;
         VCpus = source.VCpus;
         SharedMemoryBytes = source.SharedMemoryBytes;
-        PointInTimeRecovery = source.PointInTimeRecovery;
+        Template = source.Template;
 
         Validate();
     }
@@ -58,9 +58,9 @@ public sealed class RailwayPostgresDeploymentOptions
     public long? SharedMemoryBytes { get; set; }
 
     /// <summary>
-    /// Gets or sets whether new Railway PostgreSQL services use Railway's Postgres PITR template.
+    /// Gets or sets the Railway PostgreSQL template used when creating a new service.
     /// </summary>
-    public bool PointInTimeRecovery { get; set; }
+    public RailwayPostgresTemplate Template { get; set; }
 
     internal bool HasServiceInstanceSettings =>
         Region is not null
@@ -89,6 +89,11 @@ public sealed class RailwayPostgresDeploymentOptions
         if (RestartPolicy is not null && !Enum.IsDefined(RestartPolicy.Value))
         {
             throw new InvalidOperationException("Railway PostgreSQL restart policy is not supported.");
+        }
+
+        if (!Enum.IsDefined(Template))
+        {
+            throw new InvalidOperationException("Railway PostgreSQL template is not supported.");
         }
 
         if (RestartPolicyMaxRetries is < 0)

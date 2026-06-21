@@ -8,7 +8,7 @@ During `aspire deploy`, the package:
 2. Resolves a Railway environment name such as `production` to its environment id when needed.
 3. Looks up the Railway service by name.
 4. Applies the selected ownership mode.
-5. Creates a Railway PostgreSQL service from Railway's standard PostgreSQL template, or the Postgres PITR template when configured, when needed.
+5. Creates a Railway PostgreSQL service from the configured Railway template when needed.
 6. Waits for Railway connection variables.
 7. Reconciles configured Railway service settings, resource limits, and PostgreSQL shared memory.
 8. Redeploys the Railway PostgreSQL service when a requested region change is not already reflected by the latest Railway deployment manifest.

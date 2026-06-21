@@ -42,9 +42,9 @@ public sealed class RailwayPostgresDeploymentOptionsDto
     public long? SharedMemoryBytes { get; set; }
 
     /// <summary>
-    /// Gets or sets whether new Railway PostgreSQL services use Railway's Postgres PITR template.
+    /// Gets or sets the Railway PostgreSQL template used when creating a new service.
     /// </summary>
-    public bool? PointInTimeRecovery { get; set; }
+    public RailwayPostgresTemplate? Template { get; set; }
 
     internal RailwayPostgresOwnershipMode GetOwnershipMode()
     {
@@ -61,7 +61,7 @@ public sealed class RailwayPostgresDeploymentOptionsDto
             MemoryGB = MemoryGB,
             VCpus = VCpus,
             SharedMemoryBytes = SharedMemoryBytes,
-            PointInTimeRecovery = PointInTimeRecovery == true,
+            Template = Template ?? RailwayPostgresTemplate.Standard,
         };
     }
 }

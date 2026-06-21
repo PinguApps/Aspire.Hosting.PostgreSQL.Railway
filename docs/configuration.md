@@ -40,7 +40,7 @@ postgres.PublishToRailway(
         options.MemoryGB = 2;
         options.VCpus = 1;
         options.SharedMemoryBytes = 524288000;
-        options.PointInTimeRecovery = true;
+        options.Template = RailwayPostgresTemplate.PointInTimeRecovery;
     });
 ```
 
@@ -52,11 +52,11 @@ postgres.PublishToRailway(
 | `MemoryGB` | Service instance memory limit in GB. |
 | `VCpus` | Service instance vCPU limit. |
 | `SharedMemoryBytes` | Service variable `RAILWAY_SHM_SIZE_BYTES` for container shared memory. This is not volume storage. |
-| `PointInTimeRecovery` | Creates new services from Railway's Postgres PITR template instead of the standard Postgres template. Default is `false`. |
+| `Template` | Railway template for new services: `Standard`, `PointInTimeRecovery`, `PostGis`, `PgVector`, or `TimescaleDb`. Default is `Standard`. |
 
 When `Region` is set for a new PostgreSQL service, the deploy step applies it before waiting for Railway readiness. For existing volume-backed PostgreSQL services, region changes are rejected because Railway must migrate the attached volume; migrate manually in Railway or create a new service instead.
 
-`PointInTimeRecovery` is create-time only. If ownership adopts an existing Railway service, the package keeps using that service and does not convert it to PITR.
+`Template` is create-time only. If ownership adopts an existing Railway service, the package keeps using that service and does not convert it to another template.
 
 The package does not expose HTTP healthcheck settings or replica count for PostgreSQL. The Railway PostgreSQL template is a stateful database service, so SQL readiness checks and single-instance defaults are safer than HTTP healthchecks or horizontal replicas.
 
