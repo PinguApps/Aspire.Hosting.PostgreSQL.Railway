@@ -1,0 +1,20 @@
+{
+  "appHost": {
+    "path": "apphost.mts",
+    "language": "typescript/nodejs"
+  },
+  "sdk": {
+    "version": "13.4.3"
+  },
+  "channel": "stable",
+  "packages": {
+    "Aspire.Hosting.PostgreSQL": "13.4.3",
+    "PinguApps.Aspire.Hosting.PostgreSQL.Railway": "../../../../src/Aspire.Hosting.PostgreSQL.Railway/Aspire.Hosting.PostgreSQL.Railway.csproj"
+  },
+  "Parameters": {
+    "railway-postgres-service-name": "typescript-fixture-postgres",
+    "railway-project-id": "fixture-project-id",
+    "railway-environment-id": "fixture-environment-id",
+    "railway-api-token": "fixture-api-token"
+  }
+}

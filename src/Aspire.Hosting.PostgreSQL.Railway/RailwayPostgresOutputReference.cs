@@ -1,0 +1,81 @@
+using Aspire.Hosting.ApplicationModel;
+
+namespace Aspire.Hosting.PostgreSQL.Railway;
+
+/// <summary>
+/// A supplementary app-facing Railway PostgreSQL output reference.
+/// </summary>
+[AspireExport("pinguapps.railway.postgres.outputReference", ExposeProperties = false, ExposeMethods = false)]
+public sealed class RailwayPostgresOutputReference : IExpressionValue, IValueProvider, IManifestExpressionProvider, IValueWithReferences
+{
+    private readonly PostgresServerResource _resource;
+    private string? _value;
+
+    internal RailwayPostgresOutputReference(PostgresServerResource resource, string name, bool secret = false)
+    {
+        ArgumentNullException.ThrowIfNull(resource);
+
+        _resource = resource;
+        Name = name;
+        ValueExpression = $"{{{resource.Name}.outputs.{name}}}";
+        Secret = secret;
+    }
+
+    /// <summary>The stable output name.</summary>
+    [AspireExportIgnore(Reason = "Output metadata is not part of the TypeScript authoring surface.")]
+    public string Name { get; }
+
+    /// <summary>Whether the output value is sensitive.</summary>
+    [AspireExportIgnore(Reason = "Output metadata is not part of the TypeScript authoring surface.")]
+    public bool Secret { get; }
+
+    /// <inheritdoc />
+    [AspireExportIgnore(Reason = "Reference mechanics are consumed by Aspire, not TypeScript authors.")]
+    public IEnumerable<object> References => [_resource];
+
+    /// <summary>The manifest expression used to reference the output.</summary>
+    [AspireExportIgnore(Reason = "Reference mechanics are consumed by Aspire, not TypeScript authors.")]
+    public string ValueExpression { get; }
+
+    /// <summary>Creates a reference expression for this output.</summary>
+    [AspireExportIgnore(Reason = "Reference mechanics are consumed by Aspire, not TypeScript authors.")]
+    public ReferenceExpression AsReferenceExpression()
+    {
+        return ReferenceExpression.Create($"{this}");
+    }
+
+    /// <inheritdoc />
+    [AspireExportIgnore(Reason = "Reference values are resolved by Aspire.")]
+    public ValueTask<string?> GetValueAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return _value is null
+            ? throw new InvalidOperationException("The Railway PostgreSQL output has not been populated by the deployment pipeline.")
+            : ValueTask.FromResult<string?>(_value);
+    }
+
+    /// <inheritdoc />
+    [AspireExportIgnore(Reason = "Reference values are resolved by Aspire.")]
+    public ValueTask<string?> GetValueAsync(ValueProviderContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (_value is not null)
+        {
+            return ValueTask.FromResult<string?>(_value);
+        }
+
+        if (context.ExecutionContext?.Operation == DistributedApplicationOperation.Run)
+        {
+            return ValueTask.FromResult<string?>(string.Empty);
+        }
+
+        throw new InvalidOperationException("The Railway PostgreSQL output has not been populated by the deployment pipeline.");
+    }
+
+    internal void SetValue(string value)
+    {
+        _value = value;
+    }
+}

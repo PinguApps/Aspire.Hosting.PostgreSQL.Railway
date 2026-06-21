@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>PinguApps.Aspire.Hosting.PostgreSQL.Railway</PackageId>
+    <AssemblyName>PinguApps.Aspire.Hosting.PostgreSQL.Railway</AssemblyName>
+    <Description>Railway integration for Aspire.</Description>
+    <EnableAspireIntegrationAnalyzers>true</EnableAspireIntegrationAnalyzers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <PackageReference Include="Npgsql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
