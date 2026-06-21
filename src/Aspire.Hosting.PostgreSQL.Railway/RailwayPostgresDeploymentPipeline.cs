@@ -57,13 +57,13 @@ internal static class RailwayPostgresDeploymentPipeline
         RailwayPostgresRemoteIdentityDeploymentStateStore identityStore = new(
             context.Services.GetRequiredService<IDeploymentStateManager>());
         RailwayPostgresRemoteIdentityState? cachedIdentity =
-            await identityStore.LoadAsync(resource.Name, context.CancellationToken).ConfigureAwait(false);
+            await identityStore.LoadAsync(resource.Name, deployment.ProjectId, context.CancellationToken).ConfigureAwait(false);
 
         RailwayPostgresCreateFlowResult result = await ExecuteCoreAsync(
             deployment,
             client,
             cachedIdentity,
-            identity => identityStore.SaveAsync(resource.Name, identity, context.CancellationToken),
+            identity => identityStore.SaveAsync(resource.Name, deployment.ProjectId, identity, context.CancellationToken),
             progressReporter,
             resource.Name,
             context.CancellationToken)

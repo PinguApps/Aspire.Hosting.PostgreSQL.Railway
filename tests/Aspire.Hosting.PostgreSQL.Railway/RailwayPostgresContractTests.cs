@@ -13,6 +13,7 @@ using Xunit;
 namespace PinguApps.Aspire.Hosting.PostgreSQL.Railway.Tests;
 
 #pragma warning disable ASPIREPIPELINES001
+#pragma warning disable ASPIREPIPELINES002
 
 public sealed class RailwayPostgresContractTests
 {
@@ -509,6 +510,7 @@ public sealed class RailwayPostgresContractTests
 
         Assert.Equal("Configuration failed.", exception.Message);
         Assert.NotNull(savedIdentity);
+        Assert.Equal("project-id", savedIdentity.ProjectId);
         Assert.Equal("orders-postgres", savedIdentity.ServiceName);
         Assert.Equal("svc_123", savedIdentity.ServiceId);
     }
@@ -569,12 +571,40 @@ public sealed class RailwayPostgresContractTests
                 "project-id",
                 "environment-id",
                 "orders-postgres",
-                new RailwayPostgresRemoteIdentityState("orders-postgres", "svc_deleted"),
+                new RailwayPostgresRemoteIdentityState("project-id", "orders-postgres", "svc_deleted"),
                 CancellationToken.None);
 
         Assert.True(resolution.Found);
         Assert.False(resolution.ResolvedFromCachedIdentity);
         Assert.Equal("svc_new", resolution.Database?.ServiceId);
+    }
+
+    [Fact]
+    public async Task RemoteIdentityStateStore_IgnoresCachedIdentityFromDifferentProject()
+    {
+        FakeDeploymentStateManager stateManager = new();
+        RailwayPostgresRemoteIdentityDeploymentStateStore store = new(stateManager);
+
+        await store.SaveAsync(
+            "postgres",
+            "project-a",
+            new RailwayPostgresRemoteIdentityState("project-a", "orders-postgres", "svc_project_a"),
+            CancellationToken.None);
+
+        RailwayPostgresRemoteIdentityState? sameProject = await store.LoadAsync(
+            "postgres",
+            "project-a",
+            CancellationToken.None);
+        RailwayPostgresRemoteIdentityState? differentProject = await store.LoadAsync(
+            "postgres",
+            "project-b",
+            CancellationToken.None);
+
+        Assert.NotNull(sameProject);
+        Assert.Equal("project-a", sameProject.ProjectId);
+        Assert.Equal("orders-postgres", sameProject.ServiceName);
+        Assert.Equal("svc_project_a", sameProject.ServiceId);
+        Assert.Null(differentProject);
     }
 
     [Fact]
@@ -1632,6 +1662,50 @@ public sealed class RailwayPostgresContractTests
                     RailwayPostgresProviderFailureKind.NotFound,
                     statusCode: null,
                     "Railway service was not found."));
+        }
+    }
+
+    private sealed class FakeDeploymentStateManager : IDeploymentStateManager
+    {
+        private readonly Dictionary<string, DeploymentStateSection> _sections = [];
+
+        public string StateFilePath => "/tmp/fake-aspire-state.json";
+
+        public Task<DeploymentStateSection> AcquireSectionAsync(string sectionName, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!_sections.TryGetValue(sectionName, out DeploymentStateSection? section))
+            {
+                section = new DeploymentStateSection(sectionName, [], version: 0);
+                _sections[sectionName] = section;
+            }
+
+            return Task.FromResult(section);
+        }
+
+        public Task SaveSectionAsync(DeploymentStateSection section, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _sections[section.SectionName] = section;
+
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteSectionAsync(DeploymentStateSection section, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _sections.Remove(section.SectionName);
+
+            return Task.CompletedTask;
+        }
+
+        public Task ClearAllStateAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _sections.Clear();
+
+            return Task.CompletedTask;
         }
     }
 }

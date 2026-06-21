@@ -17,5 +17,5 @@ internal sealed class RailwayPostgresCreateFlowResult
     public bool Created { get; }
 
     public RailwayPostgresRemoteIdentityState RemoteIdentity =>
-        new(Database.ServiceName, Database.ServiceId);
+        new(Database.ProjectId, Database.ServiceName, Database.ServiceId);
 }
