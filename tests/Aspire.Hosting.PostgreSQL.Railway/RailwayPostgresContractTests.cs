@@ -341,6 +341,37 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task PublishToRailway_UsesRailwayOutputsForReferencesAddedBeforePublishToRailway()
+    {
+        IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
+        IResourceBuilder<PostgresServerResource> postgres = app.AddPostgres("postgres");
+        IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders");
+        IResourceBuilder<ContainerResource> api = app.AddContainer("api", "example/api")
+            .WithReference(orders);
+
+        postgres.PublishToRailway(
+            "orders-postgres",
+            app.AddParameter("railway-project-id"),
+            app.AddParameter("railway-environment-id"),
+            app.AddParameter("railway-api-token", secret: true));
+
+        Dictionary<string, object> environmentVariables = [];
+        DistributedApplicationExecutionContext executionContext = new(DistributedApplicationOperation.Publish);
+        EnvironmentCallbackContext callbackContext = new(executionContext, api.Resource, environmentVariables, CancellationToken.None);
+
+        foreach (EnvironmentCallbackAnnotation annotation in api.Resource.Annotations.OfType<EnvironmentCallbackAnnotation>())
+        {
+            await annotation.Callback(callbackContext);
+        }
+
+        ConnectionStringReference connectionString = Assert.IsType<ConnectionStringReference>(environmentVariables["ConnectionStrings__orders"]);
+        RailwayPostgresReferenceConnectionOutput referencedOutput =
+            Assert.IsType<RailwayPostgresReferenceConnectionOutput>(connectionString.Resource);
+        Assert.Contains("{postgres.outputs.ConnectionString}", referencedOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
+        Assert.Contains("Database=orders", referencedOutput.ConnectionStringExpression.ValueExpression, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task DeploymentOutputs_RedirectDatabasesAddedAfterPublishToRailwayOutputs()
     {
         IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();

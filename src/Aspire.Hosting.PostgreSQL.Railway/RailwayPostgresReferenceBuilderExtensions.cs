@@ -23,12 +23,10 @@ public static class RailwayPostgresReferenceBuilderExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(source);
 
-        IResourceWithConnectionString publishConnectionResource = GetPublishConnectionResource(source.Resource);
-
         return builder.WithRailwayPostgresConnectionReference(
             source.Resource,
             source.Resource,
-            publishConnectionResource,
+            () => GetPublishConnectionResource(source.Resource),
             connectionName,
             optional);
     }
@@ -47,12 +45,10 @@ public static class RailwayPostgresReferenceBuilderExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(source);
 
-        IResourceWithConnectionString publishConnectionResource = GetPublishConnectionResource(source.Resource);
-
         return builder.WithRailwayPostgresConnectionReference(
             source.Resource,
             source.Resource,
-            publishConnectionResource,
+            () => GetPublishConnectionResource(source.Resource),
             connectionName,
             optional);
     }
@@ -61,7 +57,7 @@ public static class RailwayPostgresReferenceBuilderExtensions
         this IResourceBuilder<TDestination> builder,
         IResourceWithConnectionString relationshipResource,
         IResourceWithConnectionString localConnectionResource,
-        IResourceWithConnectionString publishConnectionResource,
+        Func<IResourceWithConnectionString> getPublishConnectionResource,
         string? connectionName,
         bool optional)
         where TDestination : IResourceWithEnvironment
@@ -76,7 +72,7 @@ public static class RailwayPostgresReferenceBuilderExtensions
         {
             IResourceWithConnectionString connectionResource = context.ExecutionContext.Operation == DistributedApplicationOperation.Run
                 ? localConnectionResource
-                : publishConnectionResource;
+                : getPublishConnectionResource();
 
             if (flags.HasFlag(ReferenceEnvironmentInjectionFlags.ConnectionString))
             {
