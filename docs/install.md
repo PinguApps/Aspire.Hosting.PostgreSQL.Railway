@@ -17,7 +17,7 @@ Add the hosting packages to `aspire.config.json`:
 ```json
 {
   "packages": {
-    "Aspire.Hosting.PostgreSQL": "13.4.3",
+    "Aspire.Hosting.PostgreSQL": "13.4.6",
     "PinguApps.Aspire.Hosting.PostgreSQL.Railway": "<package version>"
   }
 }
@@ -28,7 +28,7 @@ For this repository checkout, use the local project path:
 ```json
 {
   "packages": {
-    "Aspire.Hosting.PostgreSQL": "13.4.3",
+    "Aspire.Hosting.PostgreSQL": "13.4.6",
     "PinguApps.Aspire.Hosting.PostgreSQL.Railway": "../../src/Aspire.Hosting.PostgreSQL.Railway/Aspire.Hosting.PostgreSQL.Railway.csproj"
   }
 }

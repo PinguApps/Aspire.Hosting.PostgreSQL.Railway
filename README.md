@@ -22,7 +22,7 @@ TypeScript AppHosts consume the same NuGet package through Aspire's generated mo
 ```json
 {
   "packages": {
-    "Aspire.Hosting.PostgreSQL": "13.4.3",
+    "Aspire.Hosting.PostgreSQL": "13.4.6",
     "PinguApps.Aspire.Hosting.PostgreSQL.Railway": "<package version>"
   }
 }
