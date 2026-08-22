@@ -96,8 +96,9 @@ jobs:
             "-c",
             "Release",
             "--no-restore",
-            "--logger",
-            "trx;LogFilePrefix=test-results",
+            "--report-xunit-trx",
+            "--report-xunit-trx-filename",
+            "test-results.trx",
             "--results-directory",
             "TestResults"
           )
