@@ -60,6 +60,13 @@ jobs:
           fi
 
           IFS=$'\t' read -r draft_id draft_tag <<< "$draft"
+          if [[ ! "$draft_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+             [[ "$draft_tag" == "$latest_tag" ]] ||
+             [[ $(printf '%s\n' "$latest_tag" "$draft_tag" | sort -V | tail -n 1) != "$draft_tag" ]]; then
+            echo "Draft tag $draft_tag is not newer than $latest_tag" >&2
+            exit 1
+          fi
+
           gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$draft_id" \
             -F draft=false --jq .html_url
           echo "tag=$draft_tag" >> "$GITHUB_OUTPUT"
