@@ -47,7 +47,13 @@ jobs:
             exit 0
           fi
 
-          draft=$(jq -r '[.[] | select(.draft)] | if length == 0 then empty else max_by(.created_at) | [.id, .tag_name] | @tsv end' <<< "$releases")
+          draft_count=$(jq -r '[.[] | select(.draft)] | length' <<< "$releases")
+          if [[ "$draft_count" -gt 1 ]]; then
+            echo "Multiple release drafts exist; refusing to choose one" >&2
+            exit 1
+          fi
+
+          draft=$(jq -r '[.[] | select(.draft)] | if length == 0 then empty else .[0] | [.id, .tag_name] | @tsv end' <<< "$releases")
           if [[ -z "$draft" ]]; then
             echo "No release draft available"
             exit 0
