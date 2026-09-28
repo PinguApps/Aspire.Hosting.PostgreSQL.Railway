@@ -15,3 +15,6 @@
   - Why: Prevent automatic publishing of an ambiguous draft or an older package version.
   - Change: Fail with multiple drafts and reject malformed or non-increasing draft tags (file: `.github/workflows/publish-release-draft.yml`).
   - Notes: PR Agent accepted the zero-releases rebuttal; actionlint and focused Bash version comparisons passed.
+- Make package publishing retryable [build] (impact: med)
+  - Why: A package failure after the draft is published must be recoverable without republishing the release.
+  - Change: Added manual `publish.yml` dispatch with a required tag (file: `.github/workflows/publish.yml`).
