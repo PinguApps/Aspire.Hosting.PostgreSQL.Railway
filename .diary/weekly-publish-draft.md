@@ -1,8 +1,8 @@
 ## Rolling state
 - Goal: Publish the existing release draft weekly or manually when main has advanced, then publish the tagged NuGet packages.
-- Current plan: Complete PR #123 review and CI, then leave it ready to merge.
+- Current plan: PR #123 implementation and CI are complete; await Gitar's current-HEAD check.
 - Open questions/risks: A manual dispatch publishes the draft and NuGet packages; avoid running it during verification.
-- Next actions: Push review fixes, await current-HEAD CI and reviewer verdicts, complete final audit.
+- Next actions: Obtain a current-HEAD Gitar check when its review quota/throttle permits, then merge PR #123.
 - Key paths: `.github/workflows/publish-release-draft.yml`, `.github/workflows/publish.yml`.
 
 ## Session log
@@ -18,3 +18,6 @@
 - Make package publishing retryable [build] (impact: med)
   - Why: A package failure after the draft is published must be recoverable without republishing the release.
   - Change: Added manual `publish.yml` dispatch with a required tag (file: `.github/workflows/publish.yml`).
+- Verify PR #123 [build] (impact: low)
+  - Change: Pushed review fixes; GitHub tests and TypeScript gate passed, PR Agent approved, Gitar resolved both findings and dashboard reported Approved.
+  - Notes: Gitar automatic processing is paused until October 1 and no exact-HEAD Gitar check was posted; Gitar also rate-limited comments for about 60 minutes.
