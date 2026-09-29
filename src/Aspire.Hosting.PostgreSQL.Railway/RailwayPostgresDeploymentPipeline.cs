@@ -46,13 +46,6 @@ internal static class RailwayPostgresDeploymentPipeline
 
         IRailwayPostgresManagementClient client = context.Services.GetService<IRailwayPostgresManagementClient>()
             ?? new RailwayPostgresManagementClient(_managementHttpClient, deployment.ManagementCredentials);
-        deployment = await ResolveEnvironmentIdAsync(
-            deployment,
-            client,
-            progressReporter,
-            resource.Name,
-            context.CancellationToken)
-            .ConfigureAwait(false);
 
         RailwayPostgresRemoteIdentityDeploymentStateStore identityStore = new(
             context.Services.GetRequiredService<IDeploymentStateManager>());

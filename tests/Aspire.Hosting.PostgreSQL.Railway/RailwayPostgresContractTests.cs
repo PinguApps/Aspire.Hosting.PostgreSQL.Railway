@@ -2056,6 +2056,25 @@ public sealed class RailwayPostgresContractTests
         Assert.Single(handler.Requests);
     }
 
+    [Fact]
+    public async Task ProjectToken_MissingScopeFailsBeforeEnvironmentLookup()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "projectToken": null } }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
+
+        RailwayPostgresProviderException exception = await Assert.ThrowsAsync<RailwayPostgresProviderException>(
+            () => client.ResolveEnvironmentIdAsync("project-id", "production", CancellationToken.None));
+
+        Assert.Equal(RailwayPostgresProviderFailureKind.Authentication, exception.FailureKind);
+        Assert.DoesNotContain("project-secret", exception.ToString(), StringComparison.Ordinal);
+        Assert.Single(handler.Requests);
+    }
+
     private static RailwayPostgresResolvedDeployment CreateDeployment(RailwayPostgresOwnershipMode ownershipMode)
     {
         return new RailwayPostgresResolvedDeployment(
