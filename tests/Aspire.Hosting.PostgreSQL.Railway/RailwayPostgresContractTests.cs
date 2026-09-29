@@ -1636,7 +1636,7 @@ public sealed class RailwayPostgresContractTests
 
         RailwayPostgresManagementClient client = new(
             new HttpClient(handler),
-            new RailwayPostgresManagementCredentials("management-secret"));
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
 
         RailwayPostgresDatabaseDetails service = await client.CreateServiceAsync(
             new RailwayPostgresCreateServiceRequest("orders-postgres", "project-id", "environment-id"),
@@ -1652,9 +1652,14 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("shortline.proxy.rlwy.net", provisioningConnectionString.Host);
         Assert.Equal(27543, provisioningConnectionString.Port);
         Assert.Equal("railway", provisioningConnectionString.Database);
-        Assert.Equal("Bearer", handler.Requests[0].AuthorizationScheme);
-        Assert.Equal("management-secret", handler.Requests[0].AuthorizationParameter);
+        Assert.All(handler.Requests, request =>
+        {
+            Assert.Equal("project-secret", request.ProjectAccessToken);
+            Assert.Null(request.AuthorizationScheme);
+        });
         Assert.Contains("GetRailwayPostgresTemplate", handler.Requests[0].Content, StringComparison.Ordinal);
+        using JsonDocument templateRequest = JsonDocument.Parse(handler.Requests[0].Content!);
+        Assert.Equal("postgres", templateRequest.RootElement.GetProperty("variables").GetProperty("code").GetString());
         Assert.Contains("templateDeployV2", handler.Requests[1].Content, StringComparison.Ordinal);
 
         using JsonDocument deployRequest = JsonDocument.Parse(handler.Requests[1].Content!);
@@ -1755,8 +1760,8 @@ public sealed class RailwayPostgresContractTests
 
         using JsonDocument templateRequest = JsonDocument.Parse(handler.Requests[0].Content!);
         Assert.Equal(
-            "ecd2f76a-b636-4b98-9336-608841bb2dd5",
-            templateRequest.RootElement.GetProperty("variables").GetProperty("id").GetString());
+            "postgres-pitr",
+            templateRequest.RootElement.GetProperty("variables").GetProperty("code").GetString());
 
         using JsonDocument deployRequest = JsonDocument.Parse(handler.Requests[1].Content!);
         JsonElement input = deployRequest.RootElement
@@ -1815,12 +1820,13 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Theory]
-    [InlineData(RailwayPostgresTemplate.PostGis, "7101c553-9fac-4cd0-b332-1efab34eee5f")]
-    [InlineData(RailwayPostgresTemplate.PgVector, "da106a2a-b086-486e-869f-1c0bfbf6dfc2")]
-    [InlineData(RailwayPostgresTemplate.TimescaleDb, "9193cebc-f2e3-47d2-b17e-d97949ef9299")]
+    [InlineData(RailwayPostgresTemplate.PostGis, "7101c553-9fac-4cd0-b332-1efab34eee5f", "postgis")]
+    [InlineData(RailwayPostgresTemplate.PgVector, "da106a2a-b086-486e-869f-1c0bfbf6dfc2", "3jJFCA")]
+    [InlineData(RailwayPostgresTemplate.TimescaleDb, "9193cebc-f2e3-47d2-b17e-d97949ef9299", "VSbF5V")]
     public async Task ManagementClient_UsesConfiguredRailwayPostgresTemplate(
         RailwayPostgresTemplate template,
-        string expectedTemplateId)
+        string expectedTemplateId,
+        string expectedTemplateCode)
     {
         FakeHttpMessageHandler handler = new();
         handler.Enqueue(System.Net.HttpStatusCode.OK, """
@@ -1882,8 +1888,8 @@ public sealed class RailwayPostgresContractTests
 
         using JsonDocument templateRequest = JsonDocument.Parse(handler.Requests[0].Content!);
         Assert.Equal(
-            expectedTemplateId,
-            templateRequest.RootElement.GetProperty("variables").GetProperty("id").GetString());
+            expectedTemplateCode,
+            templateRequest.RootElement.GetProperty("variables").GetProperty("code").GetString());
 
         using JsonDocument deployRequest = JsonDocument.Parse(handler.Requests[1].Content!);
         JsonElement input = deployRequest.RootElement
@@ -1997,6 +2003,37 @@ public sealed class RailwayPostgresContractTests
         Assert.DoesNotContain("project-secret", exception.ToString(), StringComparison.Ordinal);
         Assert.Single(handler.Requests);
         Assert.Contains("projectToken", handler.Requests[0].Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ProjectToken_UsesKnownRegionIdWithoutGlobalRegionsQuery()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "serviceInstance": { "latestDeployment": { "meta": { "serviceManifest": { "deploy": { "multiRegionConfig": { "ams": { "numReplicas": 1 } } } } } } } } }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "serviceInstanceUpdate": true } }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
+
+        bool deploymentQueued = await client.ConfigureServiceAsync(
+            "project-id",
+            "environment-id",
+            "service-id",
+            new RailwayPostgresDeploymentOptions { Region = RailwayPostgresRegions.EuWestMetal },
+            allowVolumeRegionMigration: false,
+            CancellationToken.None);
+
+        Assert.False(deploymentQueued);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Contains("GetRailwayServiceInstanceDeployment", handler.Requests[0].Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("ListRailwayRegions", handler.Requests[0].Content, StringComparison.Ordinal);
+        using JsonDocument update = JsonDocument.Parse(handler.Requests[1].Content!);
+        Assert.Equal("ams", update.RootElement.GetProperty("variables").GetProperty("input").GetProperty("region").GetString());
+        Assert.All(handler.Requests, request => Assert.Equal("project-secret", request.ProjectAccessToken));
     }
 
     [Fact]

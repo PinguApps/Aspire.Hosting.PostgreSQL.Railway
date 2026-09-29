@@ -91,9 +91,10 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         }
         """;
 
+    // Railway project tokens can read public templates by code, but template(id) returns Not Authorized.
     private const string GetTemplateQuery = """
-        query GetRailwayPostgresTemplate($id: String!) {
-          template(id: $id) {
+        query GetRailwayPostgresTemplate($code: String!) {
+          template(code: $code) {
             serializedConfig
           }
         }
@@ -389,7 +390,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         string templateId = GetTemplateId(request.Options);
         GetTemplateData templateData = await SendAsync<GetTemplateData>(
             GetTemplateQuery,
-            new { id = templateId },
+            new { code = GetTemplateCode(request.Options) },
             cancellationToken).ConfigureAwait(false);
 
         string? requestedRegionId = request.Options.Region is null
@@ -887,6 +888,39 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             $"Railway PostgreSQL template '{options.Template}' is not supported.");
     }
 
+    private static string GetTemplateCode(RailwayPostgresDeploymentOptions options)
+    {
+        if (options.Template == RailwayPostgresTemplate.Standard)
+        {
+            return "postgres";
+        }
+
+        if (options.Template == RailwayPostgresTemplate.PointInTimeRecovery)
+        {
+            return "postgres-pitr";
+        }
+
+        if (options.Template == RailwayPostgresTemplate.PostGis)
+        {
+            return "postgis";
+        }
+
+        if (options.Template == RailwayPostgresTemplate.PgVector)
+        {
+            return "3jJFCA";
+        }
+
+        if (options.Template == RailwayPostgresTemplate.TimescaleDb)
+        {
+            return "VSbF5V";
+        }
+
+        throw new RailwayPostgresProviderException(
+            RailwayPostgresProviderFailureKind.Validation,
+            statusCode: null,
+            $"Railway PostgreSQL template '{options.Template}' is not supported.");
+    }
+
     private static void ApplyTemplateDeployOptions(
         JsonObject serviceConfig,
         RailwayPostgresDeploymentOptions options,
@@ -1119,6 +1153,32 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
     private async Task<string> ResolveRegionIdAsync(string region, CancellationToken cancellationToken)
     {
+        if (_credentials.AuthenticationMode == RailwayPostgresAuthenticationMode.ProjectToken)
+        {
+            // The global regions query is not authorized for project tokens.
+            if (region == "us-west2")
+            {
+                return "sfo";
+            }
+
+            if (region == "us-east4-eqdc4a")
+            {
+                return "iad";
+            }
+
+            if (region == "europe-west4-drams3a")
+            {
+                return "ams";
+            }
+
+            if (region == "asia-southeast1-eqsg3a")
+            {
+                return "sin";
+            }
+
+            throw new InvalidOperationException("Railway PostgreSQL region is not supported.");
+        }
+
         ListRegionsData data = await SendAsync<ListRegionsData>(
             ListRegionsQuery,
             new { },
