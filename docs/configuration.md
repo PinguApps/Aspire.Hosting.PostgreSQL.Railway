@@ -7,7 +7,9 @@ Every `PublishToRailway` call needs:
 | `railway-postgres-service-name` | No | Railway service name and stable remote identity. |
 | `railway-project-id` | No | Railway project that will contain the PostgreSQL service. |
 | `railway-environment-id` | No | Railway environment id or exact environment name for the service. |
-| `railway-api-token` | Yes | Railway API token for deployment. |
+| `railway-api-token` | Yes | Infrastructure-only project token for the target environment, or a legacy account/workspace token. |
+
+Create a project token under Railway project **Settings → Tokens** for each environment. Choose `ProjectToken` authentication explicitly; `Bearer` remains the default for account/workspace tokens. Project-token deployments validate the token's project and environment against the configured values before service operations. A mismatched or invalid token fails without changing a service.
 
 ## Ownership Modes
 
@@ -41,6 +43,7 @@ postgres.PublishToRailway(
         options.VCpus = 1;
         options.SharedMemoryBytes = 524288000;
         options.Template = RailwayPostgresTemplate.PointInTimeRecovery;
+        options.AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken;
     });
 ```
 
@@ -53,6 +56,7 @@ postgres.PublishToRailway(
 | `VCpus` | Service instance vCPU limit. |
 | `SharedMemoryBytes` | Service variable `RAILWAY_SHM_SIZE_BYTES` for container shared memory. This is not volume storage. |
 | `Template` | Railway template for new services: `Standard`, `PointInTimeRecovery`, `PostGis`, `PgVector`, or `TimescaleDb`. Default is `Standard`. |
+| `AuthenticationMode` | `Bearer` (default) for account/workspace tokens; `ProjectToken` for an environment-scoped project token. |
 
 Railway templates used by `Template`:
 

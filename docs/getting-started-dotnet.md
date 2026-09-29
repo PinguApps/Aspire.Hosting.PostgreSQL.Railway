@@ -31,6 +31,7 @@ postgres.PublishToRailway(
         options.VCpus = 1;
         options.SharedMemoryBytes = 524288000;
         options.Template = RailwayPostgresTemplate.PointInTimeRecovery;
+        options.AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken;
     });
 
 builder.AddProject<Projects.Api>("api")
@@ -62,6 +63,8 @@ postgres.PublishToRailway(
 ```
 
 Local runs behave like standard Aspire PostgreSQL. `PublishToRailway` only records deploy-time intent during AppHost model construction.
+
+Create a token for the target environment under Railway project **Settings → Tokens** and pass it through the secret `railway-api-token` parameter. The configured project id and environment id/name must match its scope. Omit `AuthenticationMode` to retain legacy account/workspace Bearer authentication.
 
 Keep normal Aspire references in C# AppHosts. When `Aspire.Hosting.PostgreSQL.Railway` is imported, `.WithReference(postgres)` and `.WithReference(database)` use Railway PostgreSQL outputs during deploy for resources marked with `.PublishToRailway(...)`.
 

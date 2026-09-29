@@ -39,6 +39,15 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         }
         """;
 
+    private const string ProjectTokenScopeQuery = """
+        query GetRailwayProjectTokenScope {
+          projectToken {
+            projectId
+            environmentId
+          }
+        }
+        """;
+
     private const string ListEnvironmentsQuery = """
         query ListRailwayEnvironments($projectId: String!) {
           environments(projectId: $projectId) {
@@ -166,8 +175,36 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
         ArgumentException.ThrowIfNullOrWhiteSpace(environmentIdOrName);
 
+        RailwayProjectTokenScope? tokenScope = null;
+        if (_credentials.AuthenticationMode == RailwayPostgresAuthenticationMode.ProjectToken)
+        {
+            ProjectTokenScopeData scopeData = await SendAsync<ProjectTokenScopeData>(
+                ProjectTokenScopeQuery,
+                new { },
+                cancellationToken).ConfigureAwait(false);
+            tokenScope = scopeData.ProjectToken;
+            if (tokenScope is null
+                || string.IsNullOrWhiteSpace(tokenScope.ProjectId)
+                || string.IsNullOrWhiteSpace(tokenScope.EnvironmentId))
+            {
+                throw new RailwayPostgresProviderException(
+                    RailwayPostgresProviderFailureKind.Authentication,
+                    statusCode: null,
+                    "Railway project token did not return a valid project and environment scope.");
+            }
+
+            if (!string.Equals(tokenScope.ProjectId, projectId, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new RailwayPostgresProviderException(
+                    RailwayPostgresProviderFailureKind.Authorization,
+                    statusCode: null,
+                    "Railway project token belongs to a different project than the configured project id.");
+            }
+        }
+
         if (Guid.TryParse(environmentIdOrName, out _))
         {
+            ValidateEnvironmentScope(tokenScope, environmentIdOrName);
             return environmentIdOrName;
         }
 
@@ -200,7 +237,20 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
                 $"Railway returned more than one environment named '{environmentIdOrName}' in project '{projectId}'.");
         }
 
+        ValidateEnvironmentScope(tokenScope, matches[0].Id);
         return matches[0].Id;
+    }
+
+    private static void ValidateEnvironmentScope(RailwayProjectTokenScope? tokenScope, string environmentId)
+    {
+        if (tokenScope is not null
+            && !string.Equals(tokenScope.EnvironmentId, environmentId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new RailwayPostgresProviderException(
+                RailwayPostgresProviderFailureKind.Authorization,
+                statusCode: null,
+                "Railway project token belongs to a different environment than the configured environment.");
+        }
     }
 
     public async Task<RailwayPostgresDatabaseDetails?> FindServiceByNameAsync(
@@ -564,7 +614,7 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
         CancellationToken cancellationToken)
     {
         using HttpRequestMessage request = new(HttpMethod.Post, string.Empty);
-        request.Headers.Authorization = _credentials.CreateAuthorizationHeader();
+        _credentials.ApplyTo(request);
         request.Content = JsonContent.Create(new RailwayGraphQlRequest(query, variables), options: _serializerOptions);
 
         using HttpResponseMessage response = await SendRequestAsync(request, cancellationToken).ConfigureAwait(false);
@@ -596,10 +646,11 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
 
         if (deserialized.Errors is { Count: > 0 })
         {
+            string message = string.Join("; ", deserialized.Errors.Select(error => error.Message));
             throw new RailwayPostgresProviderException(
-                RailwayPostgresProviderFailureKind.Unexpected,
+                ClassifyGraphQlError(message),
                 response.StatusCode,
-                $"Railway GraphQL request '{GetOperationName(query)}' failed: {RedactSecrets(string.Join("; ", deserialized.Errors.Select(error => error.Message)))}");
+                $"Railway GraphQL request '{GetOperationName(query)}' failed: {RedactSecrets(message)}");
         }
 
         return deserialized.Data is null
@@ -700,6 +751,28 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
             statusCode: null,
             "Railway GraphQL request failed before a response was returned.",
             exception);
+    }
+
+    private static RailwayPostgresProviderFailureKind ClassifyGraphQlError(string message)
+    {
+        if (message.Contains("not authenticated", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("unauthenticated", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("invalid token", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("token not found", StringComparison.OrdinalIgnoreCase))
+        {
+            return RailwayPostgresProviderFailureKind.Authentication;
+        }
+
+        if (message.Contains("not authorized", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("unauthorized", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("forbidden", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("permission", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("access denied", StringComparison.OrdinalIgnoreCase))
+        {
+            return RailwayPostgresProviderFailureKind.Authorization;
+        }
+
+        return RailwayPostgresProviderFailureKind.Unexpected;
     }
 
     private string ExtractProviderMessage(string responseContent)
@@ -1266,6 +1339,18 @@ internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManageme
     private sealed class ListServicesData
     {
         public RailwayProject Project { get; set; } = new();
+    }
+
+    private sealed class ProjectTokenScopeData
+    {
+        public RailwayProjectTokenScope? ProjectToken { get; set; }
+    }
+
+    private sealed class RailwayProjectTokenScope
+    {
+        public string ProjectId { get; set; } = string.Empty;
+
+        public string EnvironmentId { get; set; } = string.Empty;
     }
 
     private sealed class ListEnvironmentsData

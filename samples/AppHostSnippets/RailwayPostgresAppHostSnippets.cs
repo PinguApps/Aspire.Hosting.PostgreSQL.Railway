@@ -32,6 +32,7 @@ public static class RailwayPostgresAppHostSnippets
                 options.VCpus = 1;
                 options.SharedMemoryBytes = 524288000;
                 options.Template = RailwayPostgresTemplate.PointInTimeRecovery;
+                options.AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken;
             });
 
         builder.AddProject<Projects.Api>("api")

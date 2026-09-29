@@ -8,7 +8,7 @@
 - Deploy behaviour: opt-in Railway PostgreSQL create/adopt flow
 - Resource of record: `PostgresServerResource`
 - Child databases: `postgres.AddDatabase(...)` resources are created inside the Railway PostgreSQL service during deploy
-- Required Railway inputs: service name, project id, environment id/name, API token
+- Required Railway inputs: service name, project id, environment id/name, management token
 - Connection output: public Railway PostgreSQL URL/TCP proxy when available, otherwise Railway's PostgreSQL host variables
 
 ## Install
@@ -67,6 +67,7 @@ postgres.PublishToRailway(
         options.VCpus = 1;
         options.SharedMemoryBytes = 524288000;
         options.Template = RailwayPostgresTemplate.PointInTimeRecovery;
+        options.AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken;
     });
 
 builder.AddProject<Projects.Api>("api")
@@ -84,6 +85,7 @@ import {
   RailwayPostgresRegions,
   RailwayPostgresRestartPolicy,
   RailwayPostgresTemplate,
+  RailwayPostgresAuthenticationMode,
   railwayPostgresOwnershipMode,
 } from "./.aspire/modules/aspire.mjs";
 
@@ -104,6 +106,7 @@ postgres = await postgres.publishToRailway(serviceName, projectId, environmentId
   vCpus: 1,
   sharedMemoryBytes: 524288000,
   template: RailwayPostgresTemplate.PointInTimeRecovery,
+  authenticationMode: RailwayPostgresAuthenticationMode.ProjectToken,
 });
 
 const orders = await postgres.addDatabase("orders");
@@ -122,7 +125,9 @@ await app.run();
 | `railway-postgres-service-name` | No | Railway service name and stable remote identity. |
 | `railway-project-id` | No | Existing Railway project id. |
 | `railway-environment-id` | No | Existing Railway environment id or exact environment name, for example `production`. |
-| `railway-api-token` | Yes | Railway API token used only by deployment infrastructure. |
+| `railway-api-token` | Yes | Railway project token for the selected environment, or an account/workspace token in legacy Bearer mode. Used only by deployment infrastructure. |
+
+Create a project token in Railway project **Settings → Tokens**, selecting the target environment. Use a separate token for each environment. Set `AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken` in C#, or `authenticationMode: RailwayPostgresAuthenticationMode.ProjectToken` in TypeScript. The default `Bearer` mode preserves existing account/workspace token deployments. Token type is never inferred or retried with another header. [Railway API token documentation](https://docs.railway.com/integrations/api#creating-a-token).
 
 For non-interactive deploys:
 
@@ -135,6 +140,7 @@ aspire deploy --non-interactive
 ```
 
 If `railway-environment-id` is not a UUID, the deployment step resolves it by listing environments in the configured Railway project before creating or adopting the PostgreSQL service.
+With project-token mode, deployment first checks `projectToken { projectId environmentId }` and rejects a token whose project or environment differs from the configured values before any service mutation.
 
 ## Deployment Options
 
@@ -149,6 +155,7 @@ If `railway-environment-id` is not a UUID, the deployment step resolves it by li
 | `VCpus` | Railway vCPU limit. |
 | `SharedMemoryBytes` | Sets Railway service variable `RAILWAY_SHM_SIZE_BYTES` for container shared memory. This is not volume storage. |
 | `Template` | Railway template for new services: `Standard`, `PointInTimeRecovery`, `PostGis`, `PgVector`, or `TimescaleDb`. Default is `Standard`. |
+| `AuthenticationMode` | `Bearer` (default) for account/workspace tokens; `ProjectToken` for environment-scoped project tokens. |
 
 Railway templates used by `Template`:
 

@@ -4,17 +4,29 @@ namespace Aspire.Hosting.PostgreSQL.Railway.Management;
 
 internal sealed class RailwayPostgresManagementCredentials
 {
-    public RailwayPostgresManagementCredentials(string apiToken)
+    public RailwayPostgresManagementCredentials(
+        string apiToken,
+        RailwayPostgresAuthenticationMode authenticationMode = RailwayPostgresAuthenticationMode.Bearer)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(apiToken);
 
         ApiToken = apiToken;
+        AuthenticationMode = authenticationMode;
     }
 
     public string ApiToken { get; }
 
-    public AuthenticationHeaderValue CreateAuthorizationHeader()
+    public RailwayPostgresAuthenticationMode AuthenticationMode { get; }
+
+    public void ApplyTo(HttpRequestMessage request)
     {
-        return new AuthenticationHeaderValue("Bearer", ApiToken);
+        if (AuthenticationMode == RailwayPostgresAuthenticationMode.ProjectToken)
+        {
+            request.Headers.Add("Project-Access-Token", ApiToken);
+        }
+        else
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiToken);
+        }
     }
 }

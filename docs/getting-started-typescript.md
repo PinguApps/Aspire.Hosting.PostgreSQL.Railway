@@ -14,6 +14,7 @@ import {
   RailwayPostgresRegions,
   RailwayPostgresRestartPolicy,
   RailwayPostgresTemplate,
+  RailwayPostgresAuthenticationMode,
   railwayPostgresOwnershipMode,
 } from "./.aspire/modules/aspire.mjs";
 
@@ -34,6 +35,7 @@ postgres = await postgres.publishToRailway(serviceName, projectId, environmentId
   vCpus: 1,
   sharedMemoryBytes: 524288000,
   template: RailwayPostgresTemplate.PointInTimeRecovery,
+  authenticationMode: RailwayPostgresAuthenticationMode.ProjectToken,
 });
 
 const orders = await postgres.addDatabase("orders");
@@ -46,6 +48,8 @@ await app.run();
 ```
 
 For deploy:
+
+Create an environment-scoped token under Railway project **Settings → Tokens**. The project id and environment id/name must match the token. Omit `authenticationMode` to retain legacy account/workspace Bearer authentication.
 
 ```powershell
 Set-Item Env:Parameters__railway-postgres-service-name $env:RAILWAY_POSTGRES_SERVICE_NAME
