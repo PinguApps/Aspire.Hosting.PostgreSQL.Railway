@@ -2057,6 +2057,26 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task ProjectToken_GraphQlAuthorizationErrorIsClassifiedAndRedacted()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "errors": [{ "message": "Forbidden project-secret" }] }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
+
+        RailwayPostgresProviderException exception = await Assert.ThrowsAsync<RailwayPostgresProviderException>(
+            () => client.ResolveEnvironmentIdAsync("project-id", "production", CancellationToken.None));
+
+        Assert.Equal(RailwayPostgresProviderFailureKind.Authorization, exception.FailureKind);
+        Assert.Contains("[redacted]", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("project-secret", exception.ToString(), StringComparison.Ordinal);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
     public async Task ProjectToken_MissingScopeFailsBeforeEnvironmentLookup()
     {
         FakeHttpMessageHandler handler = new();
