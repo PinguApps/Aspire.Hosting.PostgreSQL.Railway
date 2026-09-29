@@ -2015,6 +2015,28 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task TypeScriptBridge_ProjectTokenModeReachesDeploymentCredentials()
+    {
+        IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
+        IResourceBuilder<PostgresServerResource> postgres = app.AddPostgres("postgres")
+            .PublishToRailwayForTypeScript(
+                app.AddParameter("railway-postgres-service-name", "orders-postgres"),
+                app.AddParameter("railway-project-id", "project-id"),
+                app.AddParameter("railway-environment-id", "production"),
+                app.AddParameter("railway-api-token", "project-secret", secret: true),
+                new RailwayPostgresDeploymentOptionsDto
+                {
+                    AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken,
+                });
+        RailwayPostgresDeploymentState state = postgres.Resource.GetRailwayPostgresDeploymentState()!;
+
+        RailwayPostgresResolvedDeployment deployment = await RailwayPostgresDeployTimeResolver.ResolveAsync(
+            state, postgres.Resource, executionContext: null, CancellationToken.None);
+
+        Assert.Equal(RailwayPostgresAuthenticationMode.ProjectToken, deployment.ManagementCredentials.AuthenticationMode);
+    }
+
+    [Fact]
     public async Task ProjectToken_GraphQlAuthenticationErrorIsClassifiedAndRedacted()
     {
         FakeHttpMessageHandler handler = new();
