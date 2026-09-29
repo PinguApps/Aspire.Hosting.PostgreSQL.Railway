@@ -1,8 +1,8 @@
 ## Rolling state
 - Goal: Support environment-scoped Railway project tokens for PostgreSQL publishing, then adopt the released package in Template.
-- Current plan: Package PR #125 has passing CI and PR Agent on code HEAD; Gitar approved the prior code HEAD but automatic reviews are paused by quota. Live production/staging proof remains before merge.
-- Open questions/risks: Browser confirmation is pending before creating two scoped project tokens; `templateDeployV2` and subsequent provider operations have not been proven with them.
-- Next actions: Create scoped test tokens after confirmation; run production/staging create/adopt/reconcile/cross-environment smoke; remove the disposable Railway project; update PR evidence and review; after Pingu merges and releases, update Template.
+- Current plan: Package PR #125 is open, mergeable, and green on current HEAD (CI, PR Agent, Gitar). Pingu will review/merge and publish NuGet before Template adoption.
+- Open questions/risks: Package release and Template pin await Pingu's merge/release; no live Railway resources remain.
+- Next actions: After Pingu confirms merge and NuGet release, update `V:\Template` PostgreSQL variant, generated secrets/release guidance, and smoke/build tests.
 - Key paths: `src/Aspire.Hosting.PostgreSQL.Railway/Management/`, `tests/Aspire.Hosting.PostgreSQL.Railway/RailwayPostgresContractTests.cs`, `V:\Template`.
 
 ## Session log
@@ -22,3 +22,15 @@
 - Address review coverage [tests] (impact: low)
   - Change: Added separate tests for GraphQL authorization redaction, invalid C#/TypeScript enum values, and production pipeline preflight (commits: c87d861, 923c06a, 44660d5).
   - Notes: Replied to both Copilot threads; PR Agent verified them and left zero unresolved threads. No live tokens or services yet.
+
+### 2026-09-29 14:13 +01:00 (agent/pin-665-project-token)
+- Prove scoped Railway path [infra] (impact: med)
+  - Why: PIN-665 required real Standard/PITR creation and environment isolation before release.
+  - Change: Created production/staging project tokens in Chrome; verified `projectToken` scope, Standard/PITR `templateDeployV2` creation in `ams`, repeat adoption, reconciliation, outputs, child databases, and cross-environment rejection.
+  - Notes: `template(id)` and global `regions` returned `Not Authorized`; `template(code)` and known region IDs worked. Revoked both tokens and immediately deleted the disposable project; Railway project query returns `Project not found`.
+- Fix provider API compatibility [api] (impact: med)
+  - Change: Switched public template lookup to code, mapped supported project-token region IDs, added active contract coverage, and updated AGENTS baseline (files: `RailwayPostgresManagementClient.cs`, `RailwayPostgresContractTests.cs`, `AGENTS.md`; commit `1c45537`).
+  - Notes: Full suite 61 passed, 1 opt-in live test skipped; local TypeScript NuGet package gate passed.
+- Finish package PR review [build] (impact: low)
+  - Change: Updated PR #125 and Linear PIN-665 with live evidence; CI, PR Agent, and manually triggered Gitar review passed on current HEAD.
+  - Notes: PR remains unmerged; NuGet release and Template work await Pingu's merge/release.
