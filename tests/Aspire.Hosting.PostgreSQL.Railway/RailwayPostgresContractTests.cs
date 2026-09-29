@@ -338,6 +338,29 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public void PublishToRailway_RejectsUnsupportedAuthenticationModeFromCSharpAndTypeScript()
+    {
+        IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
+        IResourceBuilder<ParameterResource> serviceName = app.AddParameter("railway-postgres-service-name");
+        IResourceBuilder<ParameterResource> projectId = app.AddParameter("railway-project-id");
+        IResourceBuilder<ParameterResource> environmentId = app.AddParameter("railway-environment-id");
+        IResourceBuilder<ParameterResource> apiToken = app.AddParameter("railway-api-token", secret: true);
+        RailwayPostgresAuthenticationMode invalidMode = (RailwayPostgresAuthenticationMode)999;
+
+        InvalidOperationException csharpException = Assert.Throws<InvalidOperationException>(() =>
+            app.AddPostgres("csharp-postgres").PublishToRailway(
+                serviceName, projectId, environmentId, apiToken,
+                configure: options => options.AuthenticationMode = invalidMode));
+        InvalidOperationException typeScriptException = Assert.Throws<InvalidOperationException>(() =>
+            app.AddPostgres("typescript-postgres").PublishToRailwayForTypeScript(
+                serviceName, projectId, environmentId, apiToken,
+                new RailwayPostgresDeploymentOptionsDto { AuthenticationMode = invalidMode }));
+
+        Assert.Contains("authentication mode", csharpException.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("authentication mode", typeScriptException.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task PublishToRailway_UsesRailwayOutputsOnlyForPublishReferences()
     {
         IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
