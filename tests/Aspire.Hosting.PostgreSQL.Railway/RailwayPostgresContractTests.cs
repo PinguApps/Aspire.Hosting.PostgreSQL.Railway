@@ -2000,6 +2000,31 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Fact]
+    public async Task DeploymentPipeline_RejectsWrongProjectTokenBeforeServiceLookup()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "projectToken": { "projectId": "project-id", "environmentId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" } } }
+            """);
+        RailwayPostgresManagementCredentials credentials = new("project-secret", RailwayPostgresAuthenticationMode.ProjectToken);
+        RailwayPostgresManagementClient client = new(new HttpClient(handler), credentials);
+        RailwayPostgresResolvedDeployment deployment = new(
+            "orders-postgres",
+            "project-id",
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            RailwayPostgresOwnershipMode.CreateOrAdopt,
+            credentials);
+
+        RailwayPostgresProviderException exception = await Assert.ThrowsAsync<RailwayPostgresProviderException>(
+            () => RailwayPostgresDeploymentPipeline.ExecuteAsync(deployment, client, outputs: null, CancellationToken.None));
+
+        Assert.Equal(RailwayPostgresProviderFailureKind.Authorization, exception.FailureKind);
+        CapturedHttpRequest request = Assert.Single(handler.Requests);
+        Assert.Contains("projectToken", request.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("project-secret", exception.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BearerMode_SendsOnlyAuthorizationHeader()
     {
         FakeHttpMessageHandler handler = new();
