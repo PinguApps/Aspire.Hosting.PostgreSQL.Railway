@@ -41,7 +41,7 @@ internal static class RailwayPostgresDeployTimeResolver
             projectId,
             environmentId,
             state.OwnershipMode,
-            new RailwayPostgresManagementCredentials(apiToken),
+            new RailwayPostgresManagementCredentials(apiToken, state.Options.AuthenticationMode),
             state.Options);
     }
 

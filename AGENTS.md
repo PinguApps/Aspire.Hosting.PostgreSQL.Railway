@@ -120,7 +120,8 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - New services use Railway's standard PostgreSQL template by default, with opt-in Postgres PITR, PostGIS, pgvector, and TimescaleDB templates.
 - Remote identity is the explicit Railway PostgreSQL service name.
 - Supported ownership modes are `CreateOnly`, `ExistingOnly`, and `CreateOrAdopt`.
-- Management authentication uses a Railway API token and is infrastructure-only.
+- Management authentication uses an infrastructure-only Railway token. Bearer account/workspace tokens remain the default; environment-scoped project tokens require explicit `ProjectToken` mode and project/environment scope validation before service operations.
+- Project tokens read Railway templates by public code and use known region IDs; `template(id)` and global `regions` queries return `Not Authorized` with project-token authentication.
 - Application-facing outputs expose PostgreSQL connection details, never the Railway API token.
 - Repeated deploys must target the same intended remote service.
 - Child `AddDatabase(...)` resources are created inside the Railway PostgreSQL service during deploy.

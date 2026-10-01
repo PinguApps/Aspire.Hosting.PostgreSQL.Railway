@@ -12,6 +12,11 @@ public sealed class RailwayPostgresDeploymentOptionsDto
     public RailwayPostgresOwnershipMode? OwnershipMode { get; set; }
 
     /// <summary>
+    /// Gets or sets the Railway management token type. Defaults to account/workspace Bearer authentication.
+    /// </summary>
+    public RailwayPostgresAuthenticationMode? AuthenticationMode { get; set; }
+
+    /// <summary>
     /// Gets or sets the Railway region for the PostgreSQL service.
     /// </summary>
     public RailwayPostgresRegions? Region { get; set; }
@@ -74,6 +79,7 @@ public sealed class RailwayPostgresDeploymentOptionsDto
             VCpus = VCpus,
             SharedMemoryBytes = SharedMemoryBytes,
             Template = template,
+            AuthenticationMode = AuthenticationMode ?? RailwayPostgresAuthenticationMode.Bearer,
         };
     }
 }

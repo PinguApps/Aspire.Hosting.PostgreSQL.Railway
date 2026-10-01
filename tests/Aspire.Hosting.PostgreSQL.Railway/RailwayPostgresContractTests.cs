@@ -294,6 +294,7 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal(1, options.VCpus);
         Assert.Equal(524288000, options.SharedMemoryBytes);
         Assert.Equal(RailwayPostgresTemplate.PointInTimeRecovery, options.Template);
+        Assert.Equal(RailwayPostgresAuthenticationMode.Bearer, options.AuthenticationMode);
     }
 
     [Fact]
@@ -334,6 +335,29 @@ public sealed class RailwayPostgresContractTests
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(options.Validate);
 
         Assert.Contains("999", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PublishToRailway_RejectsUnsupportedAuthenticationModeFromCSharpAndTypeScript()
+    {
+        IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
+        IResourceBuilder<ParameterResource> serviceName = app.AddParameter("railway-postgres-service-name");
+        IResourceBuilder<ParameterResource> projectId = app.AddParameter("railway-project-id");
+        IResourceBuilder<ParameterResource> environmentId = app.AddParameter("railway-environment-id");
+        IResourceBuilder<ParameterResource> apiToken = app.AddParameter("railway-api-token", secret: true);
+        RailwayPostgresAuthenticationMode invalidMode = (RailwayPostgresAuthenticationMode)999;
+
+        InvalidOperationException csharpException = Assert.Throws<InvalidOperationException>(() =>
+            app.AddPostgres("csharp-postgres").PublishToRailway(
+                serviceName, projectId, environmentId, apiToken,
+                configure: options => options.AuthenticationMode = invalidMode));
+        InvalidOperationException typeScriptException = Assert.Throws<InvalidOperationException>(() =>
+            app.AddPostgres("typescript-postgres").PublishToRailwayForTypeScript(
+                serviceName, projectId, environmentId, apiToken,
+                new RailwayPostgresDeploymentOptionsDto { AuthenticationMode = invalidMode }));
+
+        Assert.Contains("authentication mode", csharpException.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("authentication mode", typeScriptException.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -1612,7 +1636,7 @@ public sealed class RailwayPostgresContractTests
 
         RailwayPostgresManagementClient client = new(
             new HttpClient(handler),
-            new RailwayPostgresManagementCredentials("management-secret"));
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
 
         RailwayPostgresDatabaseDetails service = await client.CreateServiceAsync(
             new RailwayPostgresCreateServiceRequest("orders-postgres", "project-id", "environment-id"),
@@ -1628,9 +1652,14 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal("shortline.proxy.rlwy.net", provisioningConnectionString.Host);
         Assert.Equal(27543, provisioningConnectionString.Port);
         Assert.Equal("railway", provisioningConnectionString.Database);
-        Assert.Equal("Bearer", handler.Requests[0].AuthorizationScheme);
-        Assert.Equal("management-secret", handler.Requests[0].AuthorizationParameter);
+        Assert.All(handler.Requests, request =>
+        {
+            Assert.Equal("project-secret", request.ProjectAccessToken);
+            Assert.Null(request.AuthorizationScheme);
+        });
         Assert.Contains("GetRailwayPostgresTemplate", handler.Requests[0].Content, StringComparison.Ordinal);
+        using JsonDocument templateRequest = JsonDocument.Parse(handler.Requests[0].Content!);
+        Assert.Equal("postgres", templateRequest.RootElement.GetProperty("variables").GetProperty("code").GetString());
         Assert.Contains("templateDeployV2", handler.Requests[1].Content, StringComparison.Ordinal);
 
         using JsonDocument deployRequest = JsonDocument.Parse(handler.Requests[1].Content!);
@@ -1731,8 +1760,8 @@ public sealed class RailwayPostgresContractTests
 
         using JsonDocument templateRequest = JsonDocument.Parse(handler.Requests[0].Content!);
         Assert.Equal(
-            "ecd2f76a-b636-4b98-9336-608841bb2dd5",
-            templateRequest.RootElement.GetProperty("variables").GetProperty("id").GetString());
+            "postgres-pitr",
+            templateRequest.RootElement.GetProperty("variables").GetProperty("code").GetString());
 
         using JsonDocument deployRequest = JsonDocument.Parse(handler.Requests[1].Content!);
         JsonElement input = deployRequest.RootElement
@@ -1791,12 +1820,13 @@ public sealed class RailwayPostgresContractTests
     }
 
     [Theory]
-    [InlineData(RailwayPostgresTemplate.PostGis, "7101c553-9fac-4cd0-b332-1efab34eee5f")]
-    [InlineData(RailwayPostgresTemplate.PgVector, "da106a2a-b086-486e-869f-1c0bfbf6dfc2")]
-    [InlineData(RailwayPostgresTemplate.TimescaleDb, "9193cebc-f2e3-47d2-b17e-d97949ef9299")]
+    [InlineData(RailwayPostgresTemplate.PostGis, "7101c553-9fac-4cd0-b332-1efab34eee5f", "postgis")]
+    [InlineData(RailwayPostgresTemplate.PgVector, "da106a2a-b086-486e-869f-1c0bfbf6dfc2", "3jJFCA")]
+    [InlineData(RailwayPostgresTemplate.TimescaleDb, "9193cebc-f2e3-47d2-b17e-d97949ef9299", "VSbF5V")]
     public async Task ManagementClient_UsesConfiguredRailwayPostgresTemplate(
         RailwayPostgresTemplate template,
-        string expectedTemplateId)
+        string expectedTemplateId,
+        string expectedTemplateCode)
     {
         FakeHttpMessageHandler handler = new();
         handler.Enqueue(System.Net.HttpStatusCode.OK, """
@@ -1858,8 +1888,8 @@ public sealed class RailwayPostgresContractTests
 
         using JsonDocument templateRequest = JsonDocument.Parse(handler.Requests[0].Content!);
         Assert.Equal(
-            expectedTemplateId,
-            templateRequest.RootElement.GetProperty("variables").GetProperty("id").GetString());
+            expectedTemplateCode,
+            templateRequest.RootElement.GetProperty("variables").GetProperty("code").GetString());
 
         using JsonDocument deployRequest = JsonDocument.Parse(handler.Requests[1].Content!);
         JsonElement input = deployRequest.RootElement
@@ -1894,6 +1924,7 @@ public sealed class RailwayPostgresContractTests
 
         RailwayPostgresDeploymentOptions dtoOptions = new RailwayPostgresDeploymentOptionsDto
         {
+            AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken,
             Region = RailwayPostgresRegions.EuWestMetal,
             RestartPolicy = RailwayPostgresRestartPolicy.Always,
             RestartPolicyMaxRetries = 4,
@@ -1915,7 +1946,238 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal(2, dtoOptions.VCpus);
         Assert.Equal(134217728, dtoOptions.SharedMemoryBytes);
         Assert.Equal(RailwayPostgresTemplate.PostGis, dtoOptions.Template);
+        Assert.Equal(RailwayPostgresAuthenticationMode.ProjectToken, dtoOptions.AuthenticationMode);
+        Assert.Equal(RailwayPostgresAuthenticationMode.Bearer, legacyDtoOptions.AuthenticationMode);
         Assert.Equal(RailwayPostgresTemplate.PointInTimeRecovery, legacyDtoOptions.Template);
+    }
+
+    [Fact]
+    public async Task ProjectToken_SendsOnlyProjectHeaderAndValidatesScopeBeforeProjectLookup()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "projectToken": { "projectId": "project-id", "environmentId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" } } }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "environments": { "edges": [{ "node": { "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "name": "production" } }] } } }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
+
+        string environmentId = await client.ResolveEnvironmentIdAsync("project-id", "production", CancellationToken.None);
+
+        Assert.Equal("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", environmentId);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Contains("projectToken", handler.Requests[0].Content, StringComparison.Ordinal);
+        Assert.All(handler.Requests, request =>
+        {
+            Assert.Null(request.AuthorizationScheme);
+            Assert.Null(request.AuthorizationParameter);
+            Assert.Equal("project-secret", request.ProjectAccessToken);
+            Assert.DoesNotContain("project-secret", request.Content, StringComparison.Ordinal);
+        });
+    }
+
+    [Theory]
+    [InlineData("other-project", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "project")]
+    [InlineData("project-id", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "environment")]
+    public async Task ProjectToken_RejectsScopeMismatchBeforeAnyMutation(
+        string tokenProjectId,
+        string tokenEnvironmentId,
+        string mismatch)
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, $$"""
+            { "data": { "projectToken": { "projectId": "{{tokenProjectId}}", "environmentId": "{{tokenEnvironmentId}}" } } }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
+
+        RailwayPostgresProviderException exception = await Assert.ThrowsAsync<RailwayPostgresProviderException>(
+            () => client.ResolveEnvironmentIdAsync("project-id", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", CancellationToken.None));
+
+        Assert.Equal(RailwayPostgresProviderFailureKind.Authorization, exception.FailureKind);
+        Assert.Contains(mismatch, exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("project-secret", exception.ToString(), StringComparison.Ordinal);
+        Assert.Single(handler.Requests);
+        Assert.Contains("projectToken", handler.Requests[0].Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ProjectToken_UsesKnownRegionIdWithoutGlobalRegionsQuery()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "serviceInstance": { "latestDeployment": { "meta": { "serviceManifest": { "deploy": { "multiRegionConfig": { "ams": { "numReplicas": 1 } } } } } } } } }
+            """);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "serviceInstanceUpdate": true } }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
+
+        bool deploymentQueued = await client.ConfigureServiceAsync(
+            "project-id",
+            "environment-id",
+            "service-id",
+            new RailwayPostgresDeploymentOptions { Region = RailwayPostgresRegions.EuWestMetal },
+            allowVolumeRegionMigration: false,
+            CancellationToken.None);
+
+        Assert.False(deploymentQueued);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Contains("GetRailwayServiceInstanceDeployment", handler.Requests[0].Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("ListRailwayRegions", handler.Requests[0].Content, StringComparison.Ordinal);
+        using JsonDocument update = JsonDocument.Parse(handler.Requests[1].Content!);
+        Assert.Equal("ams", update.RootElement.GetProperty("variables").GetProperty("input").GetProperty("region").GetString());
+        Assert.All(handler.Requests, request => Assert.Equal("project-secret", request.ProjectAccessToken));
+    }
+
+    [Fact]
+    public async Task DeploymentPipeline_RejectsWrongProjectTokenBeforeServiceLookup()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "projectToken": { "projectId": "project-id", "environmentId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" } } }
+            """);
+        RailwayPostgresManagementCredentials credentials = new("project-secret", RailwayPostgresAuthenticationMode.ProjectToken);
+        RailwayPostgresManagementClient client = new(new HttpClient(handler), credentials);
+        RailwayPostgresResolvedDeployment deployment = new(
+            "orders-postgres",
+            "project-id",
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            RailwayPostgresOwnershipMode.CreateOrAdopt,
+            credentials);
+
+        RailwayPostgresProviderException exception = await Assert.ThrowsAsync<RailwayPostgresProviderException>(
+            () => RailwayPostgresDeploymentPipeline.ExecuteAsync(deployment, client, outputs: null, CancellationToken.None));
+
+        Assert.Equal(RailwayPostgresProviderFailureKind.Authorization, exception.FailureKind);
+        CapturedHttpRequest request = Assert.Single(handler.Requests);
+        Assert.Contains("projectToken", request.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("project-secret", exception.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BearerMode_SendsOnlyAuthorizationHeader()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "environments": { "edges": [{ "node": { "id": "environment-id", "name": "production" } }] } } }
+            """);
+        RailwayPostgresManagementClient client = new(new HttpClient(handler), new RailwayPostgresManagementCredentials("bearer-secret"));
+
+        Assert.Equal("environment-id", await client.ResolveEnvironmentIdAsync("project-id", "production", CancellationToken.None));
+        CapturedHttpRequest request = Assert.Single(handler.Requests);
+        Assert.Equal("Bearer", request.AuthorizationScheme);
+        Assert.Equal("bearer-secret", request.AuthorizationParameter);
+        Assert.Null(request.ProjectAccessToken);
+    }
+
+    [Fact]
+    public async Task PublishToRailway_ProjectTokenModeSurvivesStateSnapshotAndDeployTimeResolution()
+    {
+        IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
+        IResourceBuilder<PostgresServerResource> postgres = app.AddPostgres("postgres")
+            .PublishToRailway(
+                "orders-postgres",
+                app.AddParameter("railway-project-id", "project-id"),
+                app.AddParameter("railway-environment-id", "production"),
+                app.AddParameter("railway-api-token", "project-secret", secret: true),
+                configure: options => options.AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken);
+        RailwayPostgresDeploymentState state = postgres.Resource.GetRailwayPostgresDeploymentState()!;
+
+        RailwayPostgresResolvedDeployment deployment = await RailwayPostgresDeployTimeResolver.ResolveAsync(
+            state, postgres.Resource, executionContext: null, CancellationToken.None);
+
+        Assert.Equal(RailwayPostgresAuthenticationMode.ProjectToken, state.Options.AuthenticationMode);
+        Assert.Equal(RailwayPostgresAuthenticationMode.ProjectToken, deployment.ManagementCredentials.AuthenticationMode);
+        IResourceWithConnectionString connectionResource = postgres.Resource;
+        Assert.DoesNotContain("project-secret", connectionResource.GetConnectionProperties().Select(property => property.Value.ValueExpression), StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public async Task TypeScriptBridge_ProjectTokenModeReachesDeploymentCredentials()
+    {
+        IDistributedApplicationBuilder app = DistributedApplication.CreateBuilder();
+        IResourceBuilder<PostgresServerResource> postgres = app.AddPostgres("postgres")
+            .PublishToRailwayForTypeScript(
+                app.AddParameter("railway-postgres-service-name", "orders-postgres"),
+                app.AddParameter("railway-project-id", "project-id"),
+                app.AddParameter("railway-environment-id", "production"),
+                app.AddParameter("railway-api-token", "project-secret", secret: true),
+                new RailwayPostgresDeploymentOptionsDto
+                {
+                    AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken,
+                });
+        RailwayPostgresDeploymentState state = postgres.Resource.GetRailwayPostgresDeploymentState()!;
+
+        RailwayPostgresResolvedDeployment deployment = await RailwayPostgresDeployTimeResolver.ResolveAsync(
+            state, postgres.Resource, executionContext: null, CancellationToken.None);
+
+        Assert.Equal(RailwayPostgresAuthenticationMode.ProjectToken, deployment.ManagementCredentials.AuthenticationMode);
+    }
+
+    [Fact]
+    public async Task ProjectToken_GraphQlAuthenticationErrorIsClassifiedAndRedacted()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "errors": [{ "message": "Invalid token project-secret" }] }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
+
+        RailwayPostgresProviderException exception = await Assert.ThrowsAsync<RailwayPostgresProviderException>(
+            () => client.ResolveEnvironmentIdAsync("project-id", "production", CancellationToken.None));
+
+        Assert.Equal(RailwayPostgresProviderFailureKind.Authentication, exception.FailureKind);
+        Assert.Contains("[redacted]", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("project-secret", exception.ToString(), StringComparison.Ordinal);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task ProjectToken_GraphQlAuthorizationErrorIsClassifiedAndRedacted()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "errors": [{ "message": "Forbidden project-secret" }] }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
+
+        RailwayPostgresProviderException exception = await Assert.ThrowsAsync<RailwayPostgresProviderException>(
+            () => client.ResolveEnvironmentIdAsync("project-id", "production", CancellationToken.None));
+
+        Assert.Equal(RailwayPostgresProviderFailureKind.Authorization, exception.FailureKind);
+        Assert.Contains("[redacted]", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("project-secret", exception.ToString(), StringComparison.Ordinal);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task ProjectToken_MissingScopeFailsBeforeEnvironmentLookup()
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "projectToken": null } }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
+
+        RailwayPostgresProviderException exception = await Assert.ThrowsAsync<RailwayPostgresProviderException>(
+            () => client.ResolveEnvironmentIdAsync("project-id", "production", CancellationToken.None));
+
+        Assert.Equal(RailwayPostgresProviderFailureKind.Authentication, exception.FailureKind);
+        Assert.DoesNotContain("project-secret", exception.ToString(), StringComparison.Ordinal);
+        Assert.Single(handler.Requests);
     }
 
     private static RailwayPostgresResolvedDeployment CreateDeployment(RailwayPostgresOwnershipMode ownershipMode)

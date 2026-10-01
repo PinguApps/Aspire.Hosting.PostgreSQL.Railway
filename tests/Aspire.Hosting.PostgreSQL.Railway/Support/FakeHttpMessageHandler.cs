@@ -32,6 +32,7 @@ internal sealed class FakeHttpMessageHandler : HttpMessageHandler
                 request.RequestUri?.PathAndQuery ?? string.Empty,
                 request.Headers.Authorization?.Scheme,
                 request.Headers.Authorization?.Parameter,
+                request.Headers.TryGetValues("Project-Access-Token", out IEnumerable<string>? tokens) ? tokens.Single() : null,
                 content));
 
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responseFactory =

@@ -23,6 +23,7 @@ public sealed class RailwayPostgresDeploymentOptions
         VCpus = source.VCpus;
         SharedMemoryBytes = source.SharedMemoryBytes;
         Template = source.Template;
+        AuthenticationMode = source.AuthenticationMode;
 
         Validate();
     }
@@ -63,6 +64,12 @@ public sealed class RailwayPostgresDeploymentOptions
     public RailwayPostgresTemplate Template { get; set; }
 
     /// <summary>
+    /// Gets or sets how the infrastructure-only Railway token authenticates management requests.
+    /// Defaults to account/workspace Bearer authentication.
+    /// </summary>
+    public RailwayPostgresAuthenticationMode AuthenticationMode { get; set; }
+
+    /// <summary>
     /// Gets or sets whether new services use Railway's PostgreSQL point-in-time recovery template.
     /// </summary>
     [Obsolete("Use Template = RailwayPostgresTemplate.PointInTimeRecovery instead.")]
@@ -91,6 +98,11 @@ public sealed class RailwayPostgresDeploymentOptions
 
     internal void Validate()
     {
+        if (!Enum.IsDefined(AuthenticationMode))
+        {
+            throw new InvalidOperationException("Railway PostgreSQL authentication mode is not supported.");
+        }
+
         if (Region is not null && !Enum.IsDefined(Region.Value))
         {
             throw new InvalidOperationException("Railway PostgreSQL region is not supported.");

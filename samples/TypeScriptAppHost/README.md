@@ -16,6 +16,8 @@ aspire stop --non-interactive
 
 For a live non-interactive deploy:
 
+Create an environment-scoped project token under Railway project **Settings → Tokens**. The sample selects `ProjectToken` authentication and checks the configured project and environment against that token before changing a service.
+
 ```powershell
 Set-Item Env:Parameters__railway-postgres-service-name $env:RAILWAY_POSTGRES_SERVICE_NAME
 Set-Item Env:Parameters__railway-project-id $env:RAILWAY_PROJECT_ID

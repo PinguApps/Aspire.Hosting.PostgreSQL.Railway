@@ -36,3 +36,4 @@ const password = await outputs.password();
 | ConnectionString | Yes |
 
 The Railway API token is never exposed as an app-facing output or connection property.
+In project-token mode, management requests send only `Project-Access-Token`; legacy Bearer mode sends only `Authorization: Bearer`. The token stays in deploy-time infrastructure and is redacted from provider errors. Use separate environment-scoped project tokens for production and staging. The configured project and environment must match the token scope before any service mutation.
