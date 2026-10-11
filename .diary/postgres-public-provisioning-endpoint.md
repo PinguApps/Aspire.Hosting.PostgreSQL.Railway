@@ -1,11 +1,11 @@
 ## Rolling state
 - Goal: Add opt-in public PostgreSQL provisioning endpoint for single-command Aspire child-database setup.
-- Current plan: Candidate 1.1.2 frozen and real fresh/repeated deployment passed; await parent combined-template verification before PR.
+- Current plan: Fail-fast package-gate correction added after root audit; freeze final 1.1.2 artifact and repeat exact-artifact checks before parent combined-template verification/PR.
 - Risk: Published 1.1.1 creates a private-only PITR service, then workstation SQL provisioning fails DNS.
 - Design: EnablePublicProvisioningEndpoint=false preserves baseline; true ensures/reuses scoped port-5432 TCP proxy before child SQL; retain endpoint and redact diagnostics.
 - Verification: 74 tests passed/1 existing live skip; packed TypeScript gate, SDK API compatibility against 1.1.1, real PITR child DB creation and unchanged proxy/deployment replay passed.
 - Next: Parent combined-template integration; complete-work PR/review handoff prepared outside worktree, no implementation push/PR yet.
-- Frozen artifact: 1.1.2 from 920bc1f89d731e309991ef0fa474f90bcc43036f; runtime source unchanged after freeze. Parent owns eventual rehearsal cleanup.
+- Artifact: Previous 1.1.2 fresh-create and final-diary replay passed; final gate-only commit will be frozen and supplementary verification recorded outside the worktree. Runtime source unchanged. Parent owns eventual rehearsal cleanup.
 - Branch/base: agent/postgres-public-provisioning-endpoint from fresh origin/main cc4693a80e4b93869cd636633a2882defe727321; initial push/upstream verified.
 
 ## Session log
@@ -36,3 +36,9 @@
 - Prepare PR handoff [docs] (impact: low)
   - Change: Default-template PR body and manual verification handoff prepared outside worktree; parent holds push/PR pending combined-template proof.
   - Notes: Owned rehearsal service remains up for parent capture/cleanup; no existing services modified by this rehearsal.
+
+### 2026-10-11 01:40 UTC (agent/postgres-public-provisioning-endpoint)
+- Make release gate fail fast [build] (impact: low)
+  - Why: Native restore/build/pack failures could fall through and package stale DLLs.
+  - Change: Check LASTEXITCODE after each of those three commands; build nonincrementally before pack. No dependency or runtime source changes.
+  - Notes: Final HEAD will be packed and reverified through SDK baseline compatibility, frozen TypeScript consumer and actual same-identity PostgreSQL SQL replay; supplementary proof stays outside the worktree after freeze.

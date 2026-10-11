@@ -19,8 +19,11 @@ New-Item $packageOutput -ItemType Directory -Force | Out-Null
 New-Item $nugetPackages -ItemType Directory -Force | Out-Null
 
 dotnet restore $solutionPath
-dotnet build $solutionPath -c $Configuration --no-restore -p:ContinuousIntegrationBuild=true
+if ($LASTEXITCODE -ne 0) { throw "Package gate restore failed." }
+dotnet build $solutionPath -c $Configuration --no-restore --no-incremental -p:ContinuousIntegrationBuild=true
+if ($LASTEXITCODE -ne 0) { throw "Package gate build failed." }
 dotnet pack $solutionPath -c $Configuration --no-build -p:Version=$PackageVersion -o $packageOutput
+if ($LASTEXITCODE -ne 0) { throw "Package gate pack failed." }
 
 $packageFile = Join-Path $packageOutput "$packageId.$PackageVersion.nupkg"
 $packageCacheId = $packageId.ToLowerInvariant()
