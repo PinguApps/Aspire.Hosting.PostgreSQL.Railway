@@ -1,10 +1,11 @@
 ## Rolling state
 - Goal: Add opt-in public PostgreSQL provisioning endpoint for single-command Aspire child-database setup.
-- Current plan: Implementation approved and committed; freeze candidate 1.1.2 for parent-owned real Railway verification before PR.
+- Current plan: Candidate 1.1.2 frozen and real fresh/repeated deployment passed; await parent combined-template verification before PR.
 - Risk: Published 1.1.1 creates a private-only PITR service, then workstation SQL provisioning fails DNS.
 - Design: EnablePublicProvisioningEndpoint=false preserves baseline; true ensures/reuses scoped port-5432 TCP proxy before child SQL; retain endpoint and redact diagnostics.
-- Verification: 74 tests passed, existing credential-gated live check skipped; packed TypeScript gate and SDK API compatibility against published 1.1.1 passed.
-- Next: Freeze exact committed candidate, parent fresh PITR/child-database single-command deploy and unchanged replay, complete-work PR/review.
+- Verification: 74 tests passed/1 existing live skip; packed TypeScript gate, SDK API compatibility against 1.1.1, real PITR child DB creation and unchanged proxy/deployment replay passed.
+- Next: Parent combined-template integration; complete-work PR/review handoff prepared outside worktree, no implementation push/PR yet.
+- Frozen artifact: 1.1.2 from 920bc1f89d731e309991ef0fa474f90bcc43036f; runtime source unchanged after freeze. Parent owns eventual rehearsal cleanup.
 - Branch/base: agent/postgres-public-provisioning-endpoint from fresh origin/main cc4693a80e4b93869cd636633a2882defe727321; initial push/upstream verified.
 
 ## Session log
@@ -25,3 +26,13 @@
   - Notes: CLI13.6 rejects the SDK13.5.1 list-steps gate; matching task-local CLI used. Real deployment remains parent-owned and mandatory before PR.
 - Document endpoint lifecycle [docs] (impact: low)
   - Change: Align README/configuration/deployment docs, compiled sample and concise agent guidance with explicit opt-in and retained endpoint behavior.
+
+### 2026-10-11 01:20 UTC (agent/postgres-public-provisioning-endpoint)
+- Verify real public provisioning [db] (impact: med)
+  - Change: Frozen 1.1.2 restored into clean consumer with fresh GUID cache and official dependencies; new PITR service, active proxy and child database created by one Aspire deploy in 24.8s.
+  - Notes: Actual environment-scoped project token authorized proxy creation and explicit redeployment; separate Npgsql SSL query confirmed child database existence. Database-only fixture needed an explicit terminal dependency to include the published PG pipeline step.
+- Verify unchanged replay [tests] (impact: low)
+  - Change: Replay passed in 2.0s, same service/deployment/proxy and deployment inventory, child SQL proof passed again. Provider image matched current public PITR template.
+- Prepare PR handoff [docs] (impact: low)
+  - Change: Default-template PR body and manual verification handoff prepared outside worktree; parent holds push/PR pending combined-template proof.
+  - Notes: Owned rehearsal service remains up for parent capture/cleanup; no existing services modified by this rehearsal.
