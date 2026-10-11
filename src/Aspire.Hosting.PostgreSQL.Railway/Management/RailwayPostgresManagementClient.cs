@@ -1125,14 +1125,40 @@ internal sealed partial class RailwayPostgresManagementClient : IRailwayPostgres
 
         if (deploy.TryGetProperty("region", out JsonElement region)
             && region.ValueKind == JsonValueKind.String
-            && string.Equals(region.GetString(), regionId, StringComparison.OrdinalIgnoreCase))
+            && string.Equals(NormalizeRegionIdentifier(region.GetString()), NormalizeRegionIdentifier(regionId), StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
         return deploy.TryGetProperty("multiRegionConfig", out JsonElement multiRegionConfig)
             && multiRegionConfig.ValueKind == JsonValueKind.Object
-            && multiRegionConfig.TryGetProperty(regionId, out _);
+            && multiRegionConfig.EnumerateObject().Any(region =>
+                string.Equals(NormalizeRegionIdentifier(region.Name), NormalizeRegionIdentifier(regionId), StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string? NormalizeRegionIdentifier(string? region)
+    {
+        if (string.Equals(region, "sfo", StringComparison.OrdinalIgnoreCase))
+        {
+            return "us-west2";
+        }
+
+        if (string.Equals(region, "iad", StringComparison.OrdinalIgnoreCase))
+        {
+            return "us-east4-eqdc4a";
+        }
+
+        if (string.Equals(region, "ams", StringComparison.OrdinalIgnoreCase))
+        {
+            return "europe-west4-drams3a";
+        }
+
+        if (string.Equals(region, "sin", StringComparison.OrdinalIgnoreCase))
+        {
+            return "asia-southeast1-eqsg3a";
+        }
+
+        return region;
     }
 
     private static bool DeploymentManifestHasVolumeMount(JsonElement meta)
