@@ -959,6 +959,101 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal(2, handler.Requests.Count);
     }
 
+    [Theory]
+    [InlineData(RailwayPostgresRegions.UsWestMetal, "us-west2", false)]
+    [InlineData(RailwayPostgresRegions.UsWestMetal, "us-west2", true)]
+    [InlineData(RailwayPostgresRegions.UsEastMetal, "us-east4-eqdc4a", false)]
+    [InlineData(RailwayPostgresRegions.UsEastMetal, "us-east4-eqdc4a", true)]
+    [InlineData(RailwayPostgresRegions.EuWestMetal, "europe-west4-drams3a", false)]
+    [InlineData(RailwayPostgresRegions.EuWestMetal, "europe-west4-drams3a", true)]
+    [InlineData(RailwayPostgresRegions.SoutheastAsiaMetal, "asia-southeast1-eqsg3a", false)]
+    [InlineData(RailwayPostgresRegions.SoutheastAsiaMetal, "asia-southeast1-eqsg3a", true)]
+    public async Task ProjectToken_AcceptsEquivalentVolumeRegionName(
+        RailwayPostgresRegions requestedRegion, string existingRegion, bool multiRegion)
+    {
+        FakeHttpMessageHandler handler = new();
+        EnqueueVolumeRegionManifest(handler, existingRegion, multiRegion);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "serviceInstanceUpdate": true } }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
+
+        bool deploymentQueued = await client.ConfigureServiceAsync(
+            "project-id", "environment-id", "service-id",
+            new RailwayPostgresDeploymentOptions { Region = requestedRegion },
+            allowVolumeRegionMigration: false, CancellationToken.None);
+
+        Assert.False(deploymentQueued);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Contains("GetRailwayServiceInstanceDeployment", handler.Requests[0].Content, StringComparison.Ordinal);
+        Assert.Contains("UpdateRailwayPostgresServiceInstance", handler.Requests[1].Content, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ManagementClient_AcceptsEquivalentVolumeRegionId(bool multiRegion)
+    {
+        FakeHttpMessageHandler handler = new();
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "regions": [
+              { "id": "europe-west4-drams3a", "name": "europe-west4-drams3a", "region": "Amsterdam" }
+            ] } }
+            """);
+        EnqueueVolumeRegionManifest(handler, "ams", multiRegion);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "serviceInstanceUpdate": true } }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler), new RailwayPostgresManagementCredentials("management-secret"));
+
+        bool deploymentQueued = await client.ConfigureServiceAsync(
+            "project-id", "environment-id", "service-id",
+            new RailwayPostgresDeploymentOptions { Region = RailwayPostgresRegions.EuWestMetal },
+            allowVolumeRegionMigration: false, CancellationToken.None);
+
+        Assert.False(deploymentQueued);
+        Assert.Equal(3, handler.Requests.Count);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProjectToken_RejectsDifferentVolumeRegionBeforeAnyMutation(bool multiRegion)
+    {
+        FakeHttpMessageHandler handler = new();
+        EnqueueVolumeRegionManifest(handler, "us-west2", multiRegion);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
+
+        RailwayPostgresProviderException exception = await Assert.ThrowsAsync<RailwayPostgresProviderException>(() =>
+            client.ConfigureServiceAsync(
+                "project-id", "environment-id", "service-id",
+                new RailwayPostgresDeploymentOptions { Region = RailwayPostgresRegions.EuWestMetal },
+                allowVolumeRegionMigration: false, CancellationToken.None));
+
+        Assert.Equal(RailwayPostgresProviderFailureKind.Validation, exception.FailureKind);
+        Assert.Contains("volume migration", exception.Message, StringComparison.Ordinal);
+        Assert.Single(handler.Requests);
+        Assert.Contains("GetRailwayServiceInstanceDeployment", handler.Requests[0].Content, StringComparison.Ordinal);
+    }
+
+    private static void EnqueueVolumeRegionManifest(FakeHttpMessageHandler handler, string region, bool multiRegion)
+    {
+        string regionSetting = multiRegion
+            ? $$""" "multiRegionConfig": { "{{region}}": { "numReplicas": 1 } } """
+            : $$""" "region": "{{region}}" """;
+        handler.Enqueue(System.Net.HttpStatusCode.OK, $$"""
+            { "data": { "serviceInstance": { "latestDeployment": { "meta": {
+              "volumeMounts": ["/var/lib/postgresql/data"],
+              "serviceManifest": { "deploy": { {{regionSetting}} } }
+            } } } } }
+            """);
+    }
+
     [Fact]
     public async Task ManagementClient_AppliesRegionToTemplateDeployOnCreate()
     {

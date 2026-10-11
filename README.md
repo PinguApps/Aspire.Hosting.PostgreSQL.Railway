@@ -172,6 +172,8 @@ Railway templates used by `Template`:
 
 When `Region` is set for a new PostgreSQL service, the deploy step applies it before waiting for Railway readiness. For existing volume-backed PostgreSQL services, region changes are rejected because Railway must migrate the attached volume; migrate manually in Railway or create a new service instead.
 
+The existing-volume check recognises Railway's equivalent region IDs and names: `sfo` / `us-west2`, `iad` / `us-east4-eqdc4a`, `ams` / `europe-west4-drams3a`, and `sin` / `asia-southeast1-eqsg3a`. Either form in deployment metadata identifies the same region and does not require a volume migration or region-change redeploy. Different regions remain rejected.
+
 `Template` is create-time only. If ownership adopts an existing Railway service, the package keeps using that service and does not convert it to another template. Services created by this package remember their original template in Aspire deployment state so later deploys keep matching connection-string behavior.
 
 Standard and PITR template connection strings use `Ssl Mode=Require`. PostGIS, pgvector, and TimescaleDB template connection strings use `Ssl Mode=Disable`, matching the upstream Railway template endpoints this package targets.
