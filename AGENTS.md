@@ -124,6 +124,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Project tokens read Railway templates by public code and use known region IDs; `template(id)` and global `regions` queries return `Not Authorized` with project-token authentication.
 - Application-facing outputs expose PostgreSQL connection details, never the Railway API token.
 - Repeated deploys must target the same intended remote service.
+- Matching volume-backed regions retain their provider identifiers and region map; alias equivalence must not rewrite live routing.
 - Child `AddDatabase(...)` resources are created inside the Railway PostgreSQL service during deploy.
 - `EnablePublicProvisioningEndpoint` defaults to false. When enabled, verify a scoped active port-5432 TCP proxy before child-database setup; retain and reuse it on later deploys. See [deployment behaviour](docs/deployment-behaviour.md) when changing endpoint activation or output selection.
 - The package must not auto-delete remote Railway services.

@@ -966,16 +966,15 @@ public sealed class RailwayPostgresContractTests
     [InlineData(RailwayPostgresRegions.UsEastMetal, "us-east4-eqdc4a", true)]
     [InlineData(RailwayPostgresRegions.EuWestMetal, "europe-west4-drams3a", false)]
     [InlineData(RailwayPostgresRegions.EuWestMetal, "europe-west4-drams3a", true)]
+    [InlineData(RailwayPostgresRegions.EuWestMetal, "ams", false)]
+    [InlineData(RailwayPostgresRegions.EuWestMetal, "ams", true)]
     [InlineData(RailwayPostgresRegions.SoutheastAsiaMetal, "asia-southeast1-eqsg3a", false)]
     [InlineData(RailwayPostgresRegions.SoutheastAsiaMetal, "asia-southeast1-eqsg3a", true)]
-    public async Task ProjectToken_AcceptsEquivalentVolumeRegionName(
+    public async Task ProjectToken_PreservesEquivalentVolumeRegionName(
         RailwayPostgresRegions requestedRegion, string existingRegion, bool multiRegion)
     {
         FakeHttpMessageHandler handler = new();
         EnqueueVolumeRegionManifest(handler, existingRegion, multiRegion);
-        handler.Enqueue(System.Net.HttpStatusCode.OK, """
-            { "data": { "serviceInstanceUpdate": true } }
-            """);
         RailwayPostgresManagementClient client = new(
             new HttpClient(handler),
             new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
@@ -986,15 +985,14 @@ public sealed class RailwayPostgresContractTests
             allowVolumeRegionMigration: false, CancellationToken.None);
 
         Assert.False(deploymentQueued);
-        Assert.Equal(2, handler.Requests.Count);
+        Assert.Single(handler.Requests);
         Assert.Contains("GetRailwayServiceInstanceDeployment", handler.Requests[0].Content, StringComparison.Ordinal);
-        Assert.Contains("UpdateRailwayPostgresServiceInstance", handler.Requests[1].Content, StringComparison.Ordinal);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ManagementClient_AcceptsEquivalentVolumeRegionId(bool multiRegion)
+    public async Task ManagementClient_PreservesEquivalentVolumeRegionId(bool multiRegion)
     {
         FakeHttpMessageHandler handler = new();
         handler.Enqueue(System.Net.HttpStatusCode.OK, """
@@ -1003,9 +1001,6 @@ public sealed class RailwayPostgresContractTests
             ] } }
             """);
         EnqueueVolumeRegionManifest(handler, "ams", multiRegion);
-        handler.Enqueue(System.Net.HttpStatusCode.OK, """
-            { "data": { "serviceInstanceUpdate": true } }
-            """);
         RailwayPostgresManagementClient client = new(
             new HttpClient(handler), new RailwayPostgresManagementCredentials("management-secret"));
 
@@ -1015,7 +1010,41 @@ public sealed class RailwayPostgresContractTests
             allowVolumeRegionMigration: false, CancellationToken.None);
 
         Assert.False(deploymentQueued);
-        Assert.Equal(3, handler.Requests.Count);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProjectToken_PreservesEquivalentVolumeRegionWhileUpdatingRestartPolicy(bool multiRegion)
+    {
+        FakeHttpMessageHandler handler = new();
+        EnqueueVolumeRegionManifest(handler, "europe-west4-drams3a", multiRegion);
+        handler.Enqueue(System.Net.HttpStatusCode.OK, """
+            { "data": { "serviceInstanceUpdate": true } }
+            """);
+        RailwayPostgresManagementClient client = new(
+            new HttpClient(handler),
+            new RailwayPostgresManagementCredentials("project-secret", RailwayPostgresAuthenticationMode.ProjectToken));
+
+        bool deploymentQueued = await client.ConfigureServiceAsync(
+            "project-id", "environment-id", "service-id",
+            new RailwayPostgresDeploymentOptions
+            {
+                Region = RailwayPostgresRegions.EuWestMetal,
+                RestartPolicy = RailwayPostgresRestartPolicy.OnFailure,
+                RestartPolicyMaxRetries = 7,
+            },
+            allowVolumeRegionMigration: false, CancellationToken.None);
+
+        Assert.False(deploymentQueued);
+        Assert.Equal(2, handler.Requests.Count);
+        using JsonDocument request = JsonDocument.Parse(handler.Requests[1].Content!);
+        JsonElement input = request.RootElement.GetProperty("variables").GetProperty("input");
+        Assert.False(input.TryGetProperty("region", out _));
+        Assert.False(input.TryGetProperty("multiRegionConfig", out _));
+        Assert.Equal("ON_FAILURE", input.GetProperty("restartPolicyType").GetString());
+        Assert.Equal(7, input.GetProperty("restartPolicyMaxRetries").GetInt32());
     }
 
     [Theory]

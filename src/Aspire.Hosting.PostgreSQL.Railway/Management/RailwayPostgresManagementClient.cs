@@ -520,25 +520,33 @@ internal sealed partial class RailwayPostgresManagementClient : IRailwayPostgres
                         statusCode: null,
                         $"Changing the Railway PostgreSQL region for existing service '{serviceId}' requires a Railway volume migration and is not performed automatically. Create a new Railway PostgreSQL service, or migrate the volume/region manually in Railway before deploying.");
                 }
+
+                if (latestDeploymentManifest.HasVolumeMount && latestDeploymentManifest.UsesRegion(requestedRegionId))
+                {
+                    requestedRegionId = null;
+                }
             }
 
-            await SendAsync<UpdateServiceInstanceData>(
-                UpdateServiceInstanceMutation,
-                new
-                {
-                    environmentId,
-                    serviceId,
-                    input = new
+            if (requestedRegionId is not null || options.RestartPolicy is not null || options.RestartPolicyMaxRetries is not null)
+            {
+                await SendAsync<UpdateServiceInstanceData>(
+                    UpdateServiceInstanceMutation,
+                    new
                     {
-                        region = requestedRegionId,
-                        multiRegionConfig = CreateMultiRegionConfigOrNull(requestedRegionId),
-                        restartPolicyType = options.RestartPolicy is null
-                            ? null
-                            : ToRailwayRestartPolicy(options.RestartPolicy.Value),
-                        restartPolicyMaxRetries = options.RestartPolicyMaxRetries,
+                        environmentId,
+                        serviceId,
+                        input = new
+                        {
+                            region = requestedRegionId,
+                            multiRegionConfig = CreateMultiRegionConfigOrNull(requestedRegionId),
+                            restartPolicyType = options.RestartPolicy is null
+                                ? null
+                                : ToRailwayRestartPolicy(options.RestartPolicy.Value),
+                            restartPolicyMaxRetries = options.RestartPolicyMaxRetries,
+                        },
                     },
-                },
-                cancellationToken).ConfigureAwait(false);
+                    cancellationToken).ConfigureAwait(false);
+            }
         }
 
         if (options.HasResourceLimits)
