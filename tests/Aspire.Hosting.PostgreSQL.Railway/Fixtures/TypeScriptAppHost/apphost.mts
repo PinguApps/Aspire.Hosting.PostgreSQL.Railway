@@ -23,6 +23,7 @@ postgres = await postgres.publishToRailway(serviceName, projectId, environmentId
   vCpus: 1,
   sharedMemoryBytes: 524288000,
   template: RailwayPostgresTemplate.PointInTimeRecovery,
+  enablePublicProvisioningEndpoint: true,
 });
 
 const orders = await postgres.addDatabase("orders");

@@ -8,7 +8,7 @@ using Npgsql;
 
 namespace Aspire.Hosting.PostgreSQL.Railway.Management;
 
-internal sealed class RailwayPostgresManagementClient : IRailwayPostgresManagementClient
+internal sealed partial class RailwayPostgresManagementClient : IRailwayPostgresManagementClient
 {
     private const string PostgresTemplateId = "b55da7dc-09be-4140-bc65-1284d15d349c";
     private const string PostgresPointInTimeRecoveryTemplateId = "ecd2f76a-b636-4b98-9336-608841bb2dd5";
