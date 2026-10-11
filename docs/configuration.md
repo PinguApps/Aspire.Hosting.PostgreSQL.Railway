@@ -44,6 +44,7 @@ postgres.PublishToRailway(
         options.SharedMemoryBytes = 524288000;
         options.Template = RailwayPostgresTemplate.PointInTimeRecovery;
         options.AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken;
+        options.EnablePublicProvisioningEndpoint = true;
     });
 ```
 
@@ -57,6 +58,7 @@ postgres.PublishToRailway(
 | `SharedMemoryBytes` | Service variable `RAILWAY_SHM_SIZE_BYTES` for container shared memory. This is not volume storage. |
 | `Template` | Railway template for new services: `Standard`, `PointInTimeRecovery`, `PostGis`, `PgVector`, or `TimescaleDb`. Default is `Standard`. |
 | `AuthenticationMode` | `Bearer` (default) for account/workspace tokens; `ProjectToken` for an environment-scoped project token. |
+| `EnablePublicProvisioningEndpoint` | Creates or reuses a public PostgreSQL TCP proxy for deployment-time child-database setup. Default is `false`. |
 
 Railway templates used by `Template`:
 
@@ -85,5 +87,7 @@ IResourceBuilder<PostgresDatabaseResource> orders = postgres.AddDatabase("orders
 ```
 
 During deploy, the integration creates missing child databases inside the Railway PostgreSQL service, then gives each child database a connection string with its own database name.
+
+For deployment from outside Railway's private network, set `EnablePublicProvisioningEndpoint = true` in C#, or `enablePublicProvisioningEndpoint: true` in TypeScript. This retains a public TCP endpoint targeting port 5432; the package uses its authoritative address for database setup. See [Deployment behaviour](deployment-behaviour.md) for activation and reuse.
 
 For PostGIS, pgvector, and TimescaleDB services created by this package, each child database is initialized with the matching extension after it is created.

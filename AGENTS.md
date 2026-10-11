@@ -125,6 +125,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Application-facing outputs expose PostgreSQL connection details, never the Railway API token.
 - Repeated deploys must target the same intended remote service.
 - Child `AddDatabase(...)` resources are created inside the Railway PostgreSQL service during deploy.
+- `EnablePublicProvisioningEndpoint` defaults to false. When enabled, verify a scoped active port-5432 TCP proxy before child-database setup; retain and reuse it on later deploys. See [deployment behaviour](docs/deployment-behaviour.md) when changing endpoint activation or output selection.
 - The package must not auto-delete remote Railway services.
 
 ### Key Paths

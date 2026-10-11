@@ -68,6 +68,7 @@ postgres.PublishToRailway(
         options.SharedMemoryBytes = 524288000;
         options.Template = RailwayPostgresTemplate.PointInTimeRecovery;
         options.AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken;
+        options.EnablePublicProvisioningEndpoint = true;
     });
 
 builder.AddProject<Projects.Api>("api")
@@ -107,6 +108,7 @@ postgres = await postgres.publishToRailway(serviceName, projectId, environmentId
   sharedMemoryBytes: 524288000,
   template: RailwayPostgresTemplate.PointInTimeRecovery,
   authenticationMode: RailwayPostgresAuthenticationMode.ProjectToken,
+  enablePublicProvisioningEndpoint: true,
 });
 
 const orders = await postgres.addDatabase("orders");
@@ -156,6 +158,7 @@ With project-token mode, deployment first checks `projectToken { projectId envir
 | `SharedMemoryBytes` | Sets Railway service variable `RAILWAY_SHM_SIZE_BYTES` for container shared memory. This is not volume storage. |
 | `Template` | Railway template for new services: `Standard`, `PointInTimeRecovery`, `PostGis`, `PgVector`, or `TimescaleDb`. Default is `Standard`. |
 | `AuthenticationMode` | `Bearer` (default) for account/workspace tokens; `ProjectToken` for environment-scoped project tokens. |
+| `EnablePublicProvisioningEndpoint` | Creates or reuses a public TCP proxy targeting PostgreSQL port 5432 before child-database provisioning. Default is `false`. |
 
 Railway templates used by `Template`:
 
@@ -176,6 +179,8 @@ Standard and PITR template connection strings use `Ssl Mode=Require`. PostGIS, p
 Healthcheck path and replica count are intentionally not exposed for this PostgreSQL package. Railway healthchecks are HTTP based, while the PostgreSQL template exposes a database socket. Horizontal replicas of the default PostgreSQL template are not PostgreSQL HA/read replicas.
 
 ## Behaviour
+
+Enable `EnablePublicProvisioningEndpoint` when deploying from a workstation or CI runner that cannot reach Railway's private network. The package creates or reuses the selected service's TCP proxy, waits for an active route, then creates `AddDatabase(...)` databases through its authoritative public address. A newly created or inactive proxy requires a service redeployment. Activation is bounded to two minutes, and repeated deploys reuse the existing active proxy. The public endpoint remains enabled after deployment; manage its removal in Railway when it is no longer needed. Application-facing connection outputs retain their existing selection rules.
 
 Local runs do not call Railway and keep normal Aspire PostgreSQL behaviour. During `aspire deploy`, this package creates or adopts the configured Railway PostgreSQL service, reads Railway's PostgreSQL variables, applies the server connection output, and applies child database connection strings for `AddDatabase(...)` resources. It prefers `DATABASE_PUBLIC_URL`, a public `DATABASE_URL`, or Railway TCP proxy variables when Railway exposes them, and otherwise falls back to PostgreSQL host variables. For PostGIS, pgvector, and TimescaleDB services created by this package, child databases are initialized with the matching extension.
 
