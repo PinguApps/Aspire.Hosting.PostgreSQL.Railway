@@ -1925,6 +1925,7 @@ public sealed class RailwayPostgresContractTests
         RailwayPostgresDeploymentOptions dtoOptions = new RailwayPostgresDeploymentOptionsDto
         {
             AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken,
+            EnablePublicProvisioningEndpoint = true,
             Region = RailwayPostgresRegions.EuWestMetal,
             RestartPolicy = RailwayPostgresRestartPolicy.Always,
             RestartPolicyMaxRetries = 4,
@@ -1947,6 +1948,8 @@ public sealed class RailwayPostgresContractTests
         Assert.Equal(134217728, dtoOptions.SharedMemoryBytes);
         Assert.Equal(RailwayPostgresTemplate.PostGis, dtoOptions.Template);
         Assert.Equal(RailwayPostgresAuthenticationMode.ProjectToken, dtoOptions.AuthenticationMode);
+        Assert.True(dtoOptions.EnablePublicProvisioningEndpoint);
+        Assert.False(new RailwayPostgresDeploymentOptionsDto().ToDeploymentOptions().EnablePublicProvisioningEndpoint);
         Assert.Equal(RailwayPostgresAuthenticationMode.Bearer, legacyDtoOptions.AuthenticationMode);
         Assert.Equal(RailwayPostgresTemplate.PointInTimeRecovery, legacyDtoOptions.Template);
     }
@@ -2087,13 +2090,18 @@ public sealed class RailwayPostgresContractTests
                 app.AddParameter("railway-project-id", "project-id"),
                 app.AddParameter("railway-environment-id", "production"),
                 app.AddParameter("railway-api-token", "project-secret", secret: true),
-                configure: options => options.AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken);
+                configure: options =>
+                {
+                    options.AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken;
+                    options.EnablePublicProvisioningEndpoint = true;
+                });
         RailwayPostgresDeploymentState state = postgres.Resource.GetRailwayPostgresDeploymentState()!;
 
         RailwayPostgresResolvedDeployment deployment = await RailwayPostgresDeployTimeResolver.ResolveAsync(
             state, postgres.Resource, executionContext: null, CancellationToken.None);
 
         Assert.Equal(RailwayPostgresAuthenticationMode.ProjectToken, state.Options.AuthenticationMode);
+        Assert.True(state.Options.EnablePublicProvisioningEndpoint);
         Assert.Equal(RailwayPostgresAuthenticationMode.ProjectToken, deployment.ManagementCredentials.AuthenticationMode);
         IResourceWithConnectionString connectionResource = postgres.Resource;
         Assert.DoesNotContain("project-secret", connectionResource.GetConnectionProperties().Select(property => property.Value.ValueExpression), StringComparer.Ordinal);
@@ -2112,6 +2120,7 @@ public sealed class RailwayPostgresContractTests
                 new RailwayPostgresDeploymentOptionsDto
                 {
                     AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken,
+                    EnablePublicProvisioningEndpoint = true,
                 });
         RailwayPostgresDeploymentState state = postgres.Resource.GetRailwayPostgresDeploymentState()!;
 
@@ -2119,6 +2128,7 @@ public sealed class RailwayPostgresContractTests
             state, postgres.Resource, executionContext: null, CancellationToken.None);
 
         Assert.Equal(RailwayPostgresAuthenticationMode.ProjectToken, deployment.ManagementCredentials.AuthenticationMode);
+        Assert.True(state.Options.EnablePublicProvisioningEndpoint);
     }
 
     [Fact]
@@ -2223,6 +2233,24 @@ public sealed class RailwayPostgresContractTests
         };
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeploymentPipeline_PublicProvisioningIsOptInAndDoesNotTriggerServiceConfiguration(bool enabled)
+    {
+        RailwayPostgresResolvedDeployment deployment = CreateDeployment(RailwayPostgresOwnershipMode.CreateOrAdopt);
+        deployment.Options.EnablePublicProvisioningEndpoint = enabled;
+        RailwayPostgresDatabaseDetails existing = CreateServiceDetails(latestDeploymentId: "prior");
+        FakeManagementClient client = new(existing) { ServiceByName = existing };
+
+        RailwayPostgresDatabaseDetails? result = await RailwayPostgresDeploymentPipeline.ExecuteAsync(
+            deployment, client, outputs: null, CancellationToken.None);
+
+        Assert.Same(existing, result);
+        Assert.Equal(enabled ? 1 : 0, client.PublicProvisioningCalls);
+        Assert.Null(client.ConfiguredOptions);
+    }
+
     private sealed class FakeManagementClient : IRailwayPostgresManagementClient
     {
         private readonly RailwayPostgresDatabaseDetails _service;
@@ -2261,6 +2289,16 @@ public sealed class RailwayPostgresContractTests
         public bool ConfigurationQueuedDeployment { get; init; }
 
         public Exception? ConfigureException { get; init; }
+
+        public int PublicProvisioningCalls { get; private set; }
+
+        public Task<RailwayPostgresDatabaseDetails> EnsurePublicProvisioningEndpointAsync(
+            RailwayPostgresDatabaseDetails service, RailwayPostgresTemplate template, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            PublicProvisioningCalls++;
+            return Task.FromResult(service);
+        }
 
         public Task<string> ResolveEnvironmentIdAsync(
             string projectId,

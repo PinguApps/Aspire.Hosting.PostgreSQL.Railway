@@ -24,6 +24,7 @@ public sealed class RailwayPostgresDeploymentOptions
         SharedMemoryBytes = source.SharedMemoryBytes;
         Template = source.Template;
         AuthenticationMode = source.AuthenticationMode;
+        EnablePublicProvisioningEndpoint = source.EnablePublicProvisioningEndpoint;
 
         Validate();
     }
@@ -68,6 +69,12 @@ public sealed class RailwayPostgresDeploymentOptions
     /// Defaults to account/workspace Bearer authentication.
     /// </summary>
     public RailwayPostgresAuthenticationMode AuthenticationMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether deployment ensures a public TCP proxy to PostgreSQL port 5432
+    /// for child-database provisioning. Defaults to false. The endpoint is retained after deployment.
+    /// </summary>
+    public bool EnablePublicProvisioningEndpoint { get; set; }
 
     /// <summary>
     /// Gets or sets whether new services use Railway's PostgreSQL point-in-time recovery template.

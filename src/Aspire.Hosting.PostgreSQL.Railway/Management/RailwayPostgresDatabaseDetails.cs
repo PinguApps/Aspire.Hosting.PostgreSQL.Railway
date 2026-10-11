@@ -44,6 +44,19 @@ internal sealed class RailwayPostgresDatabaseDetails
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
 
+        return Copy(databaseName, string.IsNullOrWhiteSpace(ProvisioningConnectionString)
+            ? string.Empty
+            : RailwayPostgresConnectionString.WithDatabaseName(ProvisioningConnectionString, databaseName));
+    }
+
+    public RailwayPostgresDatabaseDetails WithProvisioningConnectionString(string connectionString)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        return Copy(DatabaseName, connectionString);
+    }
+
+    private RailwayPostgresDatabaseDetails Copy(string databaseName, string provisioningConnectionString)
+    {
         return new RailwayPostgresDatabaseDetails
         {
             ServiceId = ServiceId,
@@ -56,9 +69,7 @@ internal sealed class RailwayPostgresDatabaseDetails
             Password = Password,
             DatabaseName = databaseName,
             ConnectionString = RailwayPostgresConnectionString.WithDatabaseName(ConnectionString, databaseName),
-            ProvisioningConnectionString = string.IsNullOrWhiteSpace(ProvisioningConnectionString)
-                ? string.Empty
-                : RailwayPostgresConnectionString.WithDatabaseName(ProvisioningConnectionString, databaseName),
+            ProvisioningConnectionString = provisioningConnectionString,
             LatestDeploymentId = LatestDeploymentId,
             LatestDeploymentStatus = LatestDeploymentStatus,
             LatestDeploymentStopped = LatestDeploymentStopped,

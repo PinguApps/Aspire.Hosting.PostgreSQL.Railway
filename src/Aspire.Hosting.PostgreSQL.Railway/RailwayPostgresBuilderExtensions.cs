@@ -189,6 +189,7 @@ public static class RailwayPostgresBuilderExtensions
         target.SharedMemoryBytes = source.SharedMemoryBytes;
         target.Template = source.Template;
         target.AuthenticationMode = source.AuthenticationMode;
+        target.EnablePublicProvisioningEndpoint = source.EnablePublicProvisioningEndpoint;
     }
 
     private static void RemoveExistingRailwayPipelineStep(PostgresServerResource resource)

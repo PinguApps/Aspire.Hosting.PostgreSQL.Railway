@@ -2,6 +2,14 @@ namespace Aspire.Hosting.PostgreSQL.Railway.Management;
 
 internal interface IRailwayPostgresManagementClient
 {
+    public Task<RailwayPostgresDatabaseDetails> EnsurePublicProvisioningEndpointAsync(
+        RailwayPostgresDatabaseDetails service,
+        RailwayPostgresTemplate template,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromException<RailwayPostgresDatabaseDetails>(new NotSupportedException("The Railway PostgreSQL management client does not support public provisioning endpoints."));
+    }
+
     public Task<string> ResolveEnvironmentIdAsync(
         string projectId,
         string environmentIdOrName,

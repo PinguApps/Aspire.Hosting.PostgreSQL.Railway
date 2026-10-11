@@ -326,6 +326,15 @@ internal static class RailwayPostgresDeploymentPipeline
             createResult = new RailwayPostgresCreateFlowResult(configuredDatabase, createResult.Created, createResult.Template);
         }
 
+        if (deployment.Options.EnablePublicProvisioningEndpoint)
+        {
+            RailwayPostgresDatabaseDetails service = await client.EnsurePublicProvisioningEndpointAsync(
+                createResult.Database,
+                createResult.Template ?? RailwayPostgresTemplate.Standard,
+                cancellationToken).ConfigureAwait(false);
+            createResult = new RailwayPostgresCreateFlowResult(service, createResult.Created, createResult.Template);
+        }
+
         ReportCreatedOrAdopted(progressReporter, resourceName, deployment, createResult);
 
         Report(

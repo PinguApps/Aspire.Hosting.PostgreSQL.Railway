@@ -19,8 +19,11 @@ New-Item $packageOutput -ItemType Directory -Force | Out-Null
 New-Item $nugetPackages -ItemType Directory -Force | Out-Null
 
 dotnet restore $solutionPath
-dotnet build $solutionPath -c $Configuration --no-restore -p:ContinuousIntegrationBuild=true
+if ($LASTEXITCODE -ne 0) { throw "Package gate restore failed." }
+dotnet build $solutionPath -c $Configuration --no-restore --no-incremental -p:ContinuousIntegrationBuild=true
+if ($LASTEXITCODE -ne 0) { throw "Package gate build failed." }
 dotnet pack $solutionPath -c $Configuration --no-build -p:Version=$PackageVersion -o $packageOutput
+if ($LASTEXITCODE -ne 0) { throw "Package gate pack failed." }
 
 $packageFile = Join-Path $packageOutput "$packageId.$PackageVersion.nupkg"
 $packageCacheId = $packageId.ToLowerInvariant()
@@ -80,9 +83,13 @@ try {
     $env:NUGET_PACKAGES = $nugetPackages
 
     aspire restore --non-interactive
+    if ($LASTEXITCODE -ne 0) { throw "TypeScript AppHost restore failed." }
     npm ci --no-audit --no-fund
+    if ($LASTEXITCODE -ne 0) { throw "TypeScript AppHost dependency install failed." }
     npm run typecheck
+    if ($LASTEXITCODE -ne 0) { throw "TypeScript AppHost typecheck failed." }
     aspire publish --non-interactive --list-steps
+    if ($LASTEXITCODE -ne 0) { throw "TypeScript AppHost publish step listing failed." }
 }
 finally {
     if ($null -eq $previousNuGetPackages) {

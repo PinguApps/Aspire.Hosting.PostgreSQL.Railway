@@ -17,6 +17,12 @@ public sealed class RailwayPostgresDeploymentOptionsDto
     public RailwayPostgresAuthenticationMode? AuthenticationMode { get; set; }
 
     /// <summary>
+    /// Gets or sets whether deployment ensures and retains a public PostgreSQL provisioning endpoint.
+    /// Defaults to false.
+    /// </summary>
+    public bool? EnablePublicProvisioningEndpoint { get; set; }
+
+    /// <summary>
     /// Gets or sets the Railway region for the PostgreSQL service.
     /// </summary>
     public RailwayPostgresRegions? Region { get; set; }
@@ -80,6 +86,7 @@ public sealed class RailwayPostgresDeploymentOptionsDto
             SharedMemoryBytes = SharedMemoryBytes,
             Template = template,
             AuthenticationMode = AuthenticationMode ?? RailwayPostgresAuthenticationMode.Bearer,
+            EnablePublicProvisioningEndpoint = EnablePublicProvisioningEndpoint ?? false,
         };
     }
 }
