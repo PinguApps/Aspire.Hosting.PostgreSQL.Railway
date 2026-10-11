@@ -83,9 +83,13 @@ try {
     $env:NUGET_PACKAGES = $nugetPackages
 
     aspire restore --non-interactive
+    if ($LASTEXITCODE -ne 0) { throw "TypeScript AppHost restore failed." }
     npm ci --no-audit --no-fund
+    if ($LASTEXITCODE -ne 0) { throw "TypeScript AppHost dependency install failed." }
     npm run typecheck
+    if ($LASTEXITCODE -ne 0) { throw "TypeScript AppHost typecheck failed." }
     aspire publish --non-interactive --list-steps
+    if ($LASTEXITCODE -ne 0) { throw "TypeScript AppHost publish step listing failed." }
 }
 finally {
     if ($null -eq $previousNuGetPackages) {

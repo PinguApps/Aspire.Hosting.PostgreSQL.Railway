@@ -40,5 +40,5 @@
 ### 2026-10-11 01:40 UTC (agent/postgres-public-provisioning-endpoint)
 - Make release gate fail fast [build] (impact: low)
   - Why: Native restore/build/pack failures could fall through and package stale DLLs.
-  - Change: Check LASTEXITCODE after each of those three commands; build nonincrementally before pack. No dependency or runtime source changes.
+  - Change: Check LASTEXITCODE after restore/build/pack and Aspire restore/npm install/typecheck/publish; build nonincrementally before pack. No dependency or runtime source changes.
   - Notes: Final HEAD will be packed and reverified through SDK baseline compatibility, frozen TypeScript consumer and actual same-identity PostgreSQL SQL replay; supplementary proof stays outside the worktree after freeze.
