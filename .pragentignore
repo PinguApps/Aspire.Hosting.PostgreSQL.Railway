@@ -1,0 +1,9 @@
+# PR Agent review scope; use $pragent-ignore when maintaining these rules.
+# Aspire-generated capability SDK snapshots vendored from microsoft/aspire-skills
+# (see skills-lock.json). Review upstream generator changes and fixture inputs;
+# these repetitive serializations are not useful text-review targets.
+# Keep runtime helpers, fixture stubs, hashes and skill instructions reviewable.
+/.agents/skills/aspire/evals/fixtures/ts-apphost/.modules/aspire.ts
+/.agents/skills/aspire-deployment/evals/fixtures/ts-apphost/.modules/aspire.ts
+/.agents/skills/aspire-monitoring/evals/fixtures/ts-apphost/.modules/aspire.ts
+/.agents/skills/aspire-orchestration/evals/fixtures/ts-apphost/.modules/aspire.ts
