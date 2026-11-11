@@ -4,11 +4,11 @@
     "language": "typescript/nodejs"
   },
   "sdk": {
-    "version": "13.5.1"
+    "version": "13.6.5"
   },
   "channel": "stable",
   "packages": {
-    "Aspire.Hosting.PostgreSQL": "13.5.1",
+    "Aspire.Hosting.PostgreSQL": "13.6.5",
     "PinguApps.Aspire.Hosting.PostgreSQL.Railway": "../../../../src/Aspire.Hosting.PostgreSQL.Railway/Aspire.Hosting.PostgreSQL.Railway.csproj"
   },
   "Parameters": {
