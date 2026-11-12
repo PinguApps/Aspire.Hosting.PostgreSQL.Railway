@@ -236,7 +236,7 @@ public sealed class RailwayPostgresContractTests
             RailwayPostgresReferenceConnectionOutput.ForDatabase(outputs, "orders;db");
 
         string? connectionString = await referenceOutput.GetConnectionStringAsync(CancellationToken.None);
-        NpgsqlConnectionStringBuilder builder = new(connectionString);
+        NpgsqlConnectionStringBuilder builder = [with(connectionString)];
 
         Assert.Equal("post;gres", builder.Username);
         Assert.Equal("postgres;password\"value", builder.Password);
@@ -1768,8 +1768,8 @@ public sealed class RailwayPostgresContractTests
 
         Assert.Equal("svc_123", service.ServiceId);
         Assert.Equal("orders-postgres", service.ServiceName);
-        NpgsqlConnectionStringBuilder appConnectionString = new(service.ConnectionString);
-        NpgsqlConnectionStringBuilder provisioningConnectionString = new(service.ProvisioningConnectionString);
+        NpgsqlConnectionStringBuilder appConnectionString = [with(service.ConnectionString)];
+        NpgsqlConnectionStringBuilder provisioningConnectionString = [with(service.ProvisioningConnectionString)];
         Assert.Equal("shortline.proxy.rlwy.net", appConnectionString.Host);
         Assert.Equal(27543, appConnectionString.Port);
         Assert.Equal("railway", appConnectionString.Database);

@@ -969,7 +969,7 @@ internal sealed partial class RailwayPostgresManagementClient : IRailwayPostgres
                 "Railway returned service variables in an unexpected shape.");
         }
 
-        Dictionary<string, string> parsed = new(StringComparer.Ordinal);
+        Dictionary<string, string> parsed = [with(StringComparer.Ordinal)];
 
         foreach (JsonProperty property in variables.EnumerateObject())
         {

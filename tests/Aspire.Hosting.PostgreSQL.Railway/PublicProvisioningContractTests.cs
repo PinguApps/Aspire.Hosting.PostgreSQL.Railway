@@ -29,7 +29,7 @@ public sealed class PublicProvisioningContractTests
             Assert.Null(request.AuthorizationParameter);
             Assert.Equal("project-secret", request.ProjectAccessToken);
         });
-        NpgsqlConnectionStringBuilder provisioning = new(result.ProvisioningConnectionString);
+        NpgsqlConnectionStringBuilder provisioning = [with(result.ProvisioningConnectionString)];
         Assert.Equal("public.proxy.rlwy.net", provisioning.Host);
         Assert.Equal(15432, provisioning.Port);
         Assert.Equal(SslMode.Require, provisioning.SslMode);
