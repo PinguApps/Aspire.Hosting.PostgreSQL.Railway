@@ -51,19 +51,15 @@
   ],
   "packageRules": [
     {
-      "matchPackageNames": [
-        "Aspire.Cli",
-        "Aspire.Hosting",
-        "Aspire.Hosting.PostgreSQL"
-      ],
-      "groupName": "aspire monorepo",
-      "groupSlug": "aspire-monorepo"
-    },
-    {
       "description": "Keep Npgsql on 10.x until the TypeScript AppHost supports Npgsql 11 (#212)",
       "matchDatasources": ["nuget"],
       "matchPackageNames": ["Npgsql"],
       "allowedVersions": "/^10\\./"
+    },
+    {
+      "description": "Keep first-party Aspire versions on the manually validated baseline",
+      "matchPackageNames": ["/^Aspire(?:\\.|$)/i"],
+      "enabled": false
     }
   ]
 }

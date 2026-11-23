@@ -90,6 +90,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "TypeScript AppHost typecheck failed." }
     aspire publish --non-interactive --list-steps
     if ($LASTEXITCODE -ne 0) { throw "TypeScript AppHost publish step listing failed." }
+    $deployPlan = aspire deploy --non-interactive --list-steps
+    if ($LASTEXITCODE -ne 0) { throw "TypeScript AppHost deploy step listing failed." }
+    $deployPlan | Write-Host
+    $plainDeployPlan = ($deployPlan -join "`n") -replace '\x1b\[[0-?]*[ -/]*[@-~]', ''
+    if ($plainDeployPlan -notmatch '(?m)^\s*\d+\.\s+railway-postgres-postgres\s*$') {
+        throw "TypeScript AppHost deploy plan is missing the Railway PostgreSQL step."
+    }
 }
 finally {
     if ($null -eq $previousNuGetPackages) {

@@ -1,5 +1,7 @@
 # C# AppHost Usage
 
+Add `Aspire.Hosting.Dotnet` to the AppHost at the same version as its other Aspire packages to use `AddDotnetProject`.
+
 ```csharp
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -34,7 +36,7 @@ postgres.PublishToRailway(
         options.AuthenticationMode = RailwayPostgresAuthenticationMode.ProjectToken;
     });
 
-builder.AddProject<Projects.Api>("api")
+builder.AddDotnetProject("api", "../Api/Api.csproj")
     .WithReference(orders)
     .WaitFor(postgres);
 
