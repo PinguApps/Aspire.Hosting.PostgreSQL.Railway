@@ -36,7 +36,7 @@ public static class RailwayPostgresAppHostSnippets
                 options.EnablePublicProvisioningEndpoint = true;
             });
 
-        builder.AddProject<Projects.Api>("api")
+        builder.AddDotnetProject("api", "../Api/Api.csproj")
             .WithReference(orders)
             .WaitFor(postgres);
     }

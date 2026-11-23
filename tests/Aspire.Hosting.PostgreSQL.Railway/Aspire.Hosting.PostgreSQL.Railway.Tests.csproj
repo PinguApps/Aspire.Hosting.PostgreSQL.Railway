@@ -12,12 +12,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Dotnet" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
     <ProjectReference Include="..\..\src\Aspire.Hosting.PostgreSQL.Railway\Aspire.Hosting.PostgreSQL.Railway.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\samples\AppHostSnippets\Projects\Api.cs" Link="Samples\Projects\Api.cs" />
     <Compile Include="..\..\samples\AppHostSnippets\RailwayPostgresAppHostSnippets.cs" Link="Samples\RailwayPostgresAppHostSnippets.cs" />
   </ItemGroup>
 

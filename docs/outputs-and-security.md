@@ -3,7 +3,7 @@
 Application projects should normally consume PostgreSQL through Aspire references:
 
 ```csharp
-builder.AddProject<Projects.Api>("api")
+builder.AddDotnetProject("api", "../Api/Api.csproj")
     .WithReference(orders)
     .WaitFor(postgres);
 ```

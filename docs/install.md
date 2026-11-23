@@ -1,5 +1,7 @@
 # Install
 
+This release requires Aspire 17.0.0 or later.
+
 ## C# AppHost
 
 ```powershell
@@ -17,7 +19,7 @@ Add the hosting packages to `aspire.config.json`:
 ```json
 {
   "packages": {
-    "Aspire.Hosting.PostgreSQL": "13.6.5",
+    "Aspire.Hosting.PostgreSQL": "17.0.0",
     "PinguApps.Aspire.Hosting.PostgreSQL.Railway": "<package version>"
   }
 }
@@ -28,7 +30,7 @@ For this repository checkout, use the local project path:
 ```json
 {
   "packages": {
-    "Aspire.Hosting.PostgreSQL": "13.6.5",
+    "Aspire.Hosting.PostgreSQL": "17.0.0",
     "PinguApps.Aspire.Hosting.PostgreSQL.Railway": "../../src/Aspire.Hosting.PostgreSQL.Railway/Aspire.Hosting.PostgreSQL.Railway.csproj"
   }
 }

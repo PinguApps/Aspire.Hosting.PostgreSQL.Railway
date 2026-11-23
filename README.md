@@ -13,6 +13,8 @@
 
 ## Install
 
+This release requires Aspire 17.0.0 or later.
+
 ```powershell
 dotnet add package PinguApps.Aspire.Hosting.PostgreSQL.Railway
 ```
@@ -22,7 +24,7 @@ TypeScript AppHosts consume the same NuGet package through Aspire's generated mo
 ```json
 {
   "packages": {
-    "Aspire.Hosting.PostgreSQL": "13.6.5",
+    "Aspire.Hosting.PostgreSQL": "17.0.0",
     "PinguApps.Aspire.Hosting.PostgreSQL.Railway": "<package version>"
   }
 }
@@ -71,7 +73,7 @@ postgres.PublishToRailway(
         options.EnablePublicProvisioningEndpoint = true;
     });
 
-builder.AddProject<Projects.Api>("api")
+builder.AddDotnetProject("api", "../Api/Api.csproj")
     .WithReference(orders)
     .WaitFor(postgres);
 

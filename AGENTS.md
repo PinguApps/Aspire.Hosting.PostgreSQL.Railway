@@ -94,7 +94,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ### Technical Baseline
 - Target framework: `.NET 10`.
-- Target Aspire version: `13.6.5`.
+- Target Aspire version: `17.0.0`.
 - Keep Aspire's built-in `PostgresServerResource` as the resource of record.
 - Preserve normal local PostgreSQL behavior unless the work is explicitly about deploy-time Railway behavior.
 - Keep app-facing PostgreSQL outputs separate from infrastructure-only management credentials.

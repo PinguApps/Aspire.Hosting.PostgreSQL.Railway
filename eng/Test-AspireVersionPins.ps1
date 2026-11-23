@@ -54,7 +54,9 @@ if ([string]::IsNullOrWhiteSpace($baseline)) {
   throw "Missing Aspire.Hosting baseline in Directory.Packages.props."
 }
 
-Add-Pin -Path "Directory.Packages.props" -Name "Aspire.Hosting.PostgreSQL" -Version $packageVersions["Aspire.Hosting.PostgreSQL"]
+foreach ($name in $packageVersions.Keys | Where-Object { $_ -match '^Aspire(?:\.|$)' }) {
+  Add-Pin -Path "Directory.Packages.props" -Name $name -Version $packageVersions[$name]
+}
 
 $typeScriptConfigPaths = @(
   "samples/TypeScriptAppHost/aspire.config.json",
