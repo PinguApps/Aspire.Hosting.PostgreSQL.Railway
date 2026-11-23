@@ -93,7 +93,8 @@ try {
     $deployPlan = aspire deploy --non-interactive --list-steps
     if ($LASTEXITCODE -ne 0) { throw "TypeScript AppHost deploy step listing failed." }
     $deployPlan | Write-Host
-    if (-not ($deployPlan -match '^\s*\d+\.\s+railway-postgres-postgres\s*$')) {
+    $plainDeployPlan = ($deployPlan -join "`n") -replace '\x1b\[[0-?]*[ -/]*[@-~]', ''
+    if ($plainDeployPlan -notmatch '(?m)^\s*\d+\.\s+railway-postgres-postgres\s*$') {
         throw "TypeScript AppHost deploy plan is missing the Railway PostgreSQL step."
     }
 }
